@@ -22,7 +22,11 @@ import shap
 import matplotlib.pyplot as plt
 
 # --- NEW IMPORTS FOR TRANSLATION ---
-from googletrans import Translator # Requires: pip install googletrans==4.0.0-rc1
+# from googletrans import Translator # Requires: pip install googletrans==4.0.0-rc1
+from deep_translator import GoogleTranslator
+
+# To translate:
+result = GoogleTranslator(source='auto', target='en').translate('texto a traducir')
 
 # LIME: Used for local, instance-specific explanations.
 # Wrapped in a try-except block to ensure the app doesn't crash if LIME isn't installed.
@@ -65,7 +69,7 @@ def translate_text(text, dest_lang):
     # --------------------------------------------
         
     try:
-        translator = Translator()
+       # translator = Translator()
         translation = translator.translate(text_str, dest=dest_lang)
         return translation.text
     except Exception as e:
