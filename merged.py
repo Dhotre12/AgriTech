@@ -2298,8 +2298,8 @@ def page_prediction_global():
                 df = load_dataset_global()
                 
                 if not df.empty:
-                    # Expect these numeric columns in dataset
-                    X = df[['N', 'P', 'K', 'temperature', 'humidity', 'ph', 'rainfall']]
+                    # Expect these numeric columns in dataset and force float type for PDP compatibility
+                    X = df[['N', 'P', 'K', 'temperature', 'humidity', 'ph', 'rainfall']].astype(float)
                     y = df['label']
                     
                     le = LabelEncoder()
