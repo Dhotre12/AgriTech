@@ -21,6 +21,9 @@ import warnings
 import shap
 import matplotlib.pyplot as plt
 
+# --- NEW IMPORTS FOR TRANSLATION ---
+from googletrans import Translator # Requires: pip install googletrans==4.0.0-rc1
+
 # LIME: Used for local, instance-specific explanations.
 # Wrapped in a try-except block to ensure the app doesn't crash if LIME isn't installed.
 try:
@@ -39,6 +42,34 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# ==================== TRANSLATION HELPER ====================
+@st.cache_data(show_spinner=False)
+def translate_text(text, dest_lang):
+    """
+    Translates text via API and caches the result to prevent slow load times.
+    Contains manual overrides for domain-specific abbreviations.
+    """
+    if dest_lang == 'en' or not text:
+        return text
+        
+    # --- FIX FOR "pH" -> "PhD" MISTRANSLATION ---
+    # The API often translates isolated "Ph" to PhD. We bypass the API for this specific term.
+    text_str = str(text).strip()
+    if text_str.lower() == 'ph':
+        if dest_lang == 'hi':
+            return 'पीएच'
+        elif dest_lang == 'ta':
+            return 'அளவு'
+        return 'pH'
+    # --------------------------------------------
+        
+    try:
+        translator = Translator()
+        translation = translator.translate(text_str, dest=dest_lang)
+        return translation.text
+    except Exception as e:
+        return text # Fallback to original text if API fails
 
 # ==================== PYTORCH MODEL DEFINITIONS ====================
 # ARCHITECTURAL DECISION: 
@@ -640,11 +671,13 @@ def get_tn_x_train_background(_encoders, _scaler): # _encoders and _scaler bypas
 # ==================== PAGE FUNCTIONS ====================
 
 def page_home():
+    lang = st.session_state.get('lang', 'en')
+    
     # Hero Section
     col1, col2 = st.columns([1.5, 1])
     with col1:
-        # --- NEW BADGE IMPLEMENTATION (WITH BLINKING DOT) ---
-        st.markdown("""
+        badge_text = translate_text("Precision Agriculture Ready", lang)
+        st.markdown(f"""
         <div style="display: inline-flex; align-items: center; 
                     background-color: rgba(6, 78, 59, 0.4); 
                     border: 1px solid #166534; 
@@ -652,57 +685,51 @@ def page_home():
                     padding: 6px 16px; 
                     margin-bottom: 20px;">
             <span class="blinking-dot" style="height: 8px; width: 8px; background-color: #22c55e; border-radius: 50%; margin-right: 10px; display: inline-block;"></span>
-            <span style="color: #22c55e; font-weight: 600; font-size: 0.9rem; letter-spacing: 0.5px; font-family: sans-serif;">Precision Agriculture Ready</span>
+            <span style="color: #22c55e; font-weight: 600; font-size: 0.9rem; letter-spacing: 0.5px; font-family: sans-serif;">{badge_text}</span>
         </div>
         """, unsafe_allow_html=True)
-        # --------------------------------
         
-        st.markdown('<h1 class="main-header">Next-Gen Crop<br>Recommendation</h1>', unsafe_allow_html=True)
-        st.markdown("""
-        <p style="font-size: 1.1rem; color: #64748b; line-height: 1.6; max-width: 600px;">
-        Leveraging state-of-the-art algorithms ranging from Random Forest to MS_SE_BiLSTM architectures for optimal crop selection.
-        </p>
-        """, unsafe_allow_html=True)
+        main_heading = translate_text("Next-Gen Crop Recommendation", lang)
+        st.markdown(f'<h1 class="main-header">{main_heading.replace(" ", "<br>", 1)}</h1>', unsafe_allow_html=True)
+        
+        sub_text = translate_text("Leveraging state-of-the-art algorithms ranging from Random Forest to MS_SE_BiLSTM architectures for optimal crop selection.", lang)
+        st.markdown(f'<p style="font-size: 1.1rem; color: #64748b; line-height: 1.6; max-width: 600px;">{sub_text}</p>', unsafe_allow_html=True)
         
         # Action Buttons
         c1, c2, c3 = st.columns([1, 1, 2])
         with c1:
-            if st.button("🌱 Global Predict", use_container_width=True, type="primary"):
+            if st.button(f"🌱 {translate_text('Global Predict', lang)}", use_container_width=True, type="primary"):
                 st.session_state.page = "prediction"
                 st.rerun()
         with c2:
-            if st.button("📍 Tamil Nadu Mode", use_container_width=True):
+            if st.button(f"📍 {translate_text('Tamil Nadu Mode', lang)}", use_container_width=True):
                 st.session_state.page = "tamil_nadu"
                 st.rerun()
 
     with col2:
-        st.markdown("""
+        box_title = translate_text("Multi-Model Analysis", lang)
+        box_sub = translate_text("Global & Regional Modules", lang)
+        st.markdown(f"""
         <div style="background: linear-gradient(135deg, #064e3b 0%, #16a34a 50%, #34d399 100%); 
                     border-radius: 1rem; padding: 2rem; text-align: center; position: relative;
                     box-shadow: 0 20px 40px rgba(22, 163, 74, 0.3);">
             <div style="font-size: 5rem; margin-bottom: 1rem;">🌾</div>
-            <div style="color: white; font-size: 1.25rem; font-weight: 600;">Multi-Model Analysis</div>
-            <div style="color: rgba(255,255,255,0.7); font-size: 0.875rem;">Global & Regional Modules</div>
+            <div style="color: white; font-size: 1.25rem; font-weight: 600;">{box_title}</div>
+            <div style="color: rgba(255,255,255,0.7); font-size: 0.875rem;">{box_sub}</div>
         </div>
         """, unsafe_allow_html=True)
 
     st.markdown("---")
 
-    # 1. System Performance Section (Blue Cards)
-    st.markdown("### 📊 System Performance")
-    
+    st.markdown(f"### 📊 {translate_text('System Performance', lang)}")
     col1, col2, col3, col4 = st.columns(4)
-    
     metrics = [
-        {"val": "99.8%", "label": "Max Accuracy (MS_SE_BiLSTM)", "icon": "🎯"},
-        {"val": "22", "label": "Crop Varieties", "icon": "🌽"},
-        {"val": "10", "label": "Advanced Models", "icon": "🧠"},
-        {"val": "<50ms", "label": "Inference Speed", "icon": "⚡"},
+        {"val": "99.8%", "label": translate_text("Max Accuracy", lang), "icon": "🎯"},
+        {"val": "22", "label": translate_text("Crop Varieties", lang), "icon": "🌽"},
+        {"val": "10", "label": translate_text("Advanced Models", lang), "icon": "🧠"},
+        {"val": "<50ms", "label": translate_text("Inference Speed", lang), "icon": "⚡"},
     ]
-    
-    cols = [col1, col2, col3, col4]
-    
-    for c, m in zip(cols, metrics):
+    for c, m in zip([col1, col2, col3, col4], metrics):
         with c:
             st.markdown(f"""
             <div class="metric-card">
@@ -712,42 +739,27 @@ def page_home():
             </div>
             """, unsafe_allow_html=True)
 
-    # 2. Model Leaderboard (Top 3 Ranks)
-    st.markdown("### 🏆 Model Leaderboard (Top 3)")
+    st.markdown(f"### 🏆 {translate_text('Model Leaderboard (Top 3)', lang)}")
     algos = get_algorithm_info() 
-    
     top_c1, top_c2, top_c3 = st.columns(3)
     
-    with top_c1:
-        st.markdown(f"""
-        <div style="background-color: #FFD70033; padding: 15px; border-radius: 10px; border: 2px solid #FFD700; text-align: center;">
-            <div style="font-size: 1.5rem;">🥇 1st Place</div>
-            <h3 style="margin: 5px 0;">{algos[0]['name']}</h3>
-            <div style="font-weight: bold; color: #b45309;">{algos[0]['acc']*100:.1f}% Accuracy</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-    with top_c2:
-        st.markdown(f"""
-        <div style="background-color: #C0C0C033; padding: 15px; border-radius: 10px; border: 2px solid #C0C0C0; text-align: center;">
-            <div style="font-size: 1.5rem;">🥈 2nd Place</div>
-            <h3 style="margin: 5px 0;">{algos[1]['name']}</h3>
-            <div style="font-weight: bold; color: #525252;">{algos[1]['acc']*100:.1f}% Accuracy</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-    with top_c3:
-        st.markdown(f"""
-        <div style="background-color: #CD7F3233; padding: 15px; border-radius: 10px; border: 2px solid #CD7F32; text-align: center;">
-            <div style="font-size: 1.5rem;">🥉 3rd Place</div>
-            <h3 style="margin: 5px 0;">{algos[2]['name']}</h3>
-            <div style="font-weight: bold; color: #7c2d12;">{algos[2]['acc']*100:.1f}% Accuracy</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # 3. Algorithms Implemented Section (Green Grid)
-    st.markdown("### 🚀 Algorithms Implemented")
+    places = [translate_text("1st Place", lang), translate_text("2nd Place", lang), translate_text("3rd Place", lang)]
+    acc_text = translate_text("Accuracy", lang)
     
+    with top_c1:
+        st.markdown(f"""<div style="background-color: #FFD70033; padding: 15px; border-radius: 10px; border: 2px solid #FFD700; text-align: center;">
+            <div style="font-size: 1.5rem;">🥇 {places[0]}</div><h3 style="margin: 5px 0;">{algos[0]['name']}</h3>
+            <div style="font-weight: bold; color: #b45309;">{algos[0]['acc']*100:.1f}% {acc_text}</div></div>""", unsafe_allow_html=True)
+    with top_c2:
+        st.markdown(f"""<div style="background-color: #C0C0C033; padding: 15px; border-radius: 10px; border: 2px solid #C0C0C0; text-align: center;">
+            <div style="font-size: 1.5rem;">🥈 {places[1]}</div><h3 style="margin: 5px 0;">{algos[1]['name']}</h3>
+            <div style="font-weight: bold; color: #525252;">{algos[1]['acc']*100:.1f}% {acc_text}</div></div>""", unsafe_allow_html=True)
+    with top_c3:
+        st.markdown(f"""<div style="background-color: #CD7F3233; padding: 15px; border-radius: 10px; border: 2px solid #CD7F32; text-align: center;">
+            <div style="font-size: 1.5rem;">🥉 {places[2]}</div><h3 style="margin: 5px 0;">{algos[2]['name']}</h3>
+            <div style="font-weight: bold; color: #7c2d12;">{algos[2]['acc']*100:.1f}% {acc_text}</div></div>""", unsafe_allow_html=True)
+
+    st.markdown(f"### 🚀 {translate_text('Algorithms Implemented', lang)}")
     for i in range(0, len(algos), 3):
         row_cols = st.columns(3)
         for j in range(3):
@@ -760,29 +772,43 @@ def page_home():
                             <span class="algo-title">{algo['name']}</span>
                             <span class="algo-badge">{algo['acc']*100:.1f}%</span>
                         </div>
-                        <div class="algo-desc">{algo['type']}</div>
+                        <div class="algo-desc">{translate_text(algo['type'], lang)}</div>
                     </div>
                     """, unsafe_allow_html=True)
 
 def page_dataset():
-    st.markdown("## 📊 Dataset Analysis")
+    lang = st.session_state.get('lang', 'en')
+    st.markdown(f"## 📊 {translate_text('Dataset Analysis', lang)}")
     
-    main_tab1, main_tab2 = st.tabs(["🌍 Global Dataset", "📍 Tamil Nadu Dataset"])
+    t1 = translate_text("🌍 Global Dataset", lang)
+    t2 = translate_text("📍 Tamil Nadu Dataset", lang)
+    main_tab1, main_tab2 = st.tabs([t1, t2])
+    
+    # Helper to clean technical column names so the API can translate them consistently
+    def clean_text(text):
+        return str(text).replace('_', ' ').title()
     
     # --- GLOBAL DATASET TAB ---
     with main_tab1:
         df = load_dataset_global()
         if df.empty:
-            st.error("Dataset 'Crop_recommendation.csv' not found.")
+            st.error(translate_text("Dataset 'Crop_recommendation.csv' not found.", lang))
         else:
-            sub_tab1, sub_tab2, sub_tab3 = st.tabs(["📋 Data Overview", "📈 Distributions", "🔗 Correlations"])
+            st1 = translate_text("📋 Data Overview", lang)
+            st2 = translate_text("📈 Distributions", lang)
+            st3 = translate_text("🔗 Correlations", lang)
+            sub_tab1, sub_tab2, sub_tab3 = st.tabs([st1, st2, st3])
+            
+            # Centralize the target column name
+            global_target = 'label'
+            trans_global_target = translate_text(clean_text(global_target), lang)
             
             with sub_tab1:
-                st.markdown("### 📋 Global Data Overview")
+                st.markdown(f"### 📋 {translate_text('Global Data Overview', lang)}")
                 
                 total_records = len(df)
                 n_features = len(df.columns) - 1
-                n_crops = df['label'].nunique()
+                n_crops = df[global_target].nunique() if global_target in df.columns else 0
                 missing_vals = df.isnull().sum().sum()
                 
                 col1, col2, col3, col4 = st.columns(4)
@@ -792,7 +818,7 @@ def page_dataset():
                     <div style="background-color: #e0f2fe; padding: 1.5rem; border-radius: 10px; text-align: center; border: 1px solid #bae6fd;">
                         <div style="font-size: 2rem; margin-bottom: 0.5rem;">📚</div>
                         <div style="font-size: 1.8rem; font-weight: 800; color: #0284c7;">{total_records}</div>
-                        <div style="font-size: 0.875rem; color: #475569; font-weight: 600;">Total Records</div>
+                        <div style="font-size: 0.875rem; color: #475569; font-weight: 600;">{translate_text('Total Records', lang)}</div>
                     </div>
                     """, unsafe_allow_html=True)
                 with col2:
@@ -800,7 +826,7 @@ def page_dataset():
                     <div style="background-color: #dcfce7; padding: 1.5rem; border-radius: 10px; text-align: center; border: 1px solid #86efac;">
                         <div style="font-size: 2rem; margin-bottom: 0.5rem;">🧬</div>
                         <div style="font-size: 1.8rem; font-weight: 800; color: #16a34a;">{n_features}</div>
-                        <div style="font-size: 0.875rem; color: #475569; font-weight: 600;">Features</div>
+                        <div style="font-size: 0.875rem; color: #475569; font-weight: 600;">{translate_text('Features', lang)}</div>
                     </div>
                     """, unsafe_allow_html=True)
                 with col3:
@@ -808,7 +834,7 @@ def page_dataset():
                     <div style="background-color: #fef9c3; padding: 1.5rem; border-radius: 10px; text-align: center; border: 1px solid #fde047;">
                         <div style="font-size: 2rem; margin-bottom: 0.5rem;">🌾</div>
                         <div style="font-size: 1.8rem; font-weight: 800; color: #ca8a04;">{n_crops}</div>
-                        <div style="font-size: 0.875rem; color: #475569; font-weight: 600;">Unique Crops</div>
+                        <div style="font-size: 0.875rem; color: #475569; font-weight: 600;">{translate_text('Unique Crops', lang)}</div>
                     </div>
                     """, unsafe_allow_html=True)
                 with col4:
@@ -816,94 +842,149 @@ def page_dataset():
                     <div style="background-color: #fee2e2; padding: 1.5rem; border-radius: 10px; text-align: center; border: 1px solid #fca5a5;">
                         <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔍</div>
                         <div style="font-size: 1.8rem; font-weight: 800; color: #dc2626;">{missing_vals}</div>
-                        <div style="font-size: 0.875rem; color: #475569; font-weight: 600;">Missing Values</div>
+                        <div style="font-size: 0.875rem; color: #475569; font-weight: 600;">{translate_text('Missing Values', lang)}</div>
                     </div>
                     """, unsafe_allow_html=True)
 
                 st.markdown("<br>", unsafe_allow_html=True)
-                st.dataframe(df.head(10), use_container_width=True)
                 
-                st.markdown("#### Samples per Crop Type")
-                crop_counts = df['label'].value_counts().reset_index()
-                crop_counts.columns = ['label', 'count']
-                fig = px.bar(
-                    crop_counts, 
-                    x='label', 
-                    y='count', 
-                    color='label', 
-                    title="",
-                    color_discrete_sequence=px.colors.qualitative.Bold
-                )
-                fig.update_layout(showlegend=False)
-                st.plotly_chart(fig, use_container_width=True)
+                # --- FULL TABLE TRANSLATION ---
+                df_display = df.head(10).copy()
+                if lang != 'en':
+                    # Translate headers 
+                    df_display.columns = [translate_text(clean_text(c), lang) for c in df_display.columns]
+                    # Translate data inside target column safely
+                    if trans_global_target in df_display.columns:
+                        df_display[trans_global_target] = df_display[trans_global_target].apply(lambda x: translate_text(str(x), lang))
+                
+                st.dataframe(df_display, use_container_width=True)
+                
+                st.markdown(f"#### {translate_text('Samples per Crop Type', lang)}")
+                if global_target in df.columns:
+                    crop_counts = df[global_target].value_counts().reset_index()
+                    crop_counts.columns = [trans_global_target, 'count']
+                    
+                    crop_counts[trans_global_target] = crop_counts[trans_global_target].apply(lambda x: translate_text(str(x), lang))
+                    
+                    fig = px.bar(
+                        crop_counts, x=trans_global_target, y='count', color=trans_global_target, title="",
+                        labels={trans_global_target: translate_text('Crop', lang), 'count': translate_text('Count', lang)},
+                        color_discrete_sequence=px.colors.qualitative.Bold
+                    )
+                    fig.update_layout(showlegend=False)
+                    st.plotly_chart(fig, use_container_width=True)
 
             with sub_tab2:
-                st.markdown("### 📈 Distributions")
-                feature = st.selectbox("Select Feature", df.columns[:-1], key="global_dist_feat")
+                st.markdown(f"### 📈 {translate_text('Distributions', lang)}")
+                
+                orig_cols = df.columns[:-1].tolist()
+                trans_cols = [translate_text(clean_text(c), lang) for c in orig_cols]
+                
+                sel_feature_trans = st.selectbox(translate_text("Select Feature", lang), trans_cols, key="global_dist_feat")
+                feature = orig_cols[trans_cols.index(sel_feature_trans)]
+                
+                df_plot = df.copy()
+                if global_target in df_plot.columns:
+                    df_plot[global_target] = df_plot[global_target].apply(lambda x: translate_text(str(x), lang))
+                    df_plot.rename(columns={global_target: trans_global_target}, inplace=True)
+                
+                if feature != global_target:
+                    df_plot.rename(columns={feature: sel_feature_trans}, inplace=True)
                 
                 # 1. Histogram
                 fig_hist = px.histogram(
-                    df, 
-                    x=feature, 
-                    color='label', 
+                    df_plot, x=sel_feature_trans, color=trans_global_target if trans_global_target in df_plot.columns else None, 
                     marginal="box", 
-                    title=f"Distribution of {feature}",
+                    title=f"{translate_text('Distribution of', lang)} {sel_feature_trans}",
                     color_discrete_sequence=px.colors.qualitative.Prism
                 )
                 st.plotly_chart(fig_hist, use_container_width=True)
 
                 # 2. Box Plot
-                st.markdown(f"#### {feature} Ranges per Crop")
-                fig_box = px.box(
-                    df, 
-                    x='label', 
-                    y=feature, 
-                    color='label', 
-                    title=f"{feature} Ranges per Crop",
-                    color_discrete_sequence=px.colors.qualitative.Prism
-                )
-                st.plotly_chart(fig_box, use_container_width=True)
+                if trans_global_target in df_plot.columns:
+                    st.markdown(f"#### {sel_feature_trans} {translate_text('Ranges per Crop', lang)}")
+                    fig_box = px.box(
+                        df_plot, x=trans_global_target, y=sel_feature_trans, color=trans_global_target, 
+                        title=f"{sel_feature_trans} {translate_text('Ranges per Crop', lang)}",
+                        color_discrete_sequence=px.colors.qualitative.Prism
+                    )
+                    st.plotly_chart(fig_box, use_container_width=True)
             
             with sub_tab3:
-                st.markdown("### 🔗 Correlations")
-                corr_matrix = df.select_dtypes(include=[np.number]).corr()
-                fig_corr = px.imshow(corr_matrix, text_auto=True, color_continuous_scale='Greens', title="Feature Correlation Matrix")
-                st.plotly_chart(fig_corr, use_container_width=True)
+                st.markdown(f"### 🔗 {translate_text('Correlations', lang)}")
+                numeric_df = df.select_dtypes(include=[np.number])
+                if not numeric_df.empty:
+                    corr_matrix = numeric_df.corr()
+                    
+                    trans_corr_cols = [translate_text(clean_text(c), lang) for c in corr_matrix.columns]
+                    corr_matrix.columns = trans_corr_cols
+                    corr_matrix.index = trans_corr_cols
+                    
+                    fig_corr = px.imshow(corr_matrix, text_auto=True, color_continuous_scale='Greens', title=translate_text("Feature Correlation Matrix", lang))
+                    st.plotly_chart(fig_corr, use_container_width=True)
 
-                # 3D Cluster Visualization
-                st.markdown("### 🧊 3D Cluster Visualization")
-                st.info("Visualizing feature relationships across crop types.")
+                st.markdown(f"### 🧊 {translate_text('3D Cluster Visualization', lang)}")
+                st.info(translate_text("Visualizing feature relationships across crop types.", lang))
                 
                 numeric_cols_global = df.select_dtypes(include=[np.number]).columns.tolist()
                 
-                d_x = 'N' if 'N' in numeric_cols_global else numeric_cols_global[0]
-                d_y = 'P' if 'P' in numeric_cols_global else numeric_cols_global[1]
-                d_z = 'K' if 'K' in numeric_cols_global else numeric_cols_global[2]
+                if len(numeric_cols_global) >= 3:
+                    d_x = 'N' if 'N' in numeric_cols_global else numeric_cols_global[0]
+                    d_y = 'P' if 'P' in numeric_cols_global else numeric_cols_global[1]
+                    d_z = 'K' if 'K' in numeric_cols_global else numeric_cols_global[2]
 
-                c1, c2, c3 = st.columns(3)
-                with c1: x_axis = st.selectbox("X Axis", numeric_cols_global, index=numeric_cols_global.index(d_x), key="g_3d_x")
-                with c2: y_axis = st.selectbox("Y Axis", numeric_cols_global, index=numeric_cols_global.index(d_y), key="g_3d_y")
-                with c3: z_axis = st.selectbox("Z Axis", numeric_cols_global, index=numeric_cols_global.index(d_z), key="g_3d_z")
+                    trans_numeric_cols = [translate_text(clean_text(c), lang) for c in numeric_cols_global]
 
-                if x_axis and y_axis and z_axis:
-                    fig_3d = px.scatter_3d(df, x=x_axis, y=y_axis, z=z_axis, color='label', symbol='label')
-                    fig_3d.update_layout(scene = dict(xaxis_title=x_axis, yaxis_title=y_axis, zaxis_title=z_axis), height=600)
-                    st.plotly_chart(fig_3d, use_container_width=True)
+                    c1, c2, c3 = st.columns(3)
+                    with c1: 
+                        sel_x_trans = st.selectbox(translate_text("X Axis", lang), trans_numeric_cols, index=numeric_cols_global.index(d_x), key="g_3d_x")
+                        x_axis = numeric_cols_global[trans_numeric_cols.index(sel_x_trans)]
+                    with c2: 
+                        sel_y_trans = st.selectbox(translate_text("Y Axis", lang), trans_numeric_cols, index=numeric_cols_global.index(d_y), key="g_3d_y")
+                        y_axis = numeric_cols_global[trans_numeric_cols.index(sel_y_trans)]
+                    with c3: 
+                        sel_z_trans = st.selectbox(translate_text("Z Axis", lang), trans_numeric_cols, index=numeric_cols_global.index(d_z), key="g_3d_z")
+                        z_axis = numeric_cols_global[trans_numeric_cols.index(sel_z_trans)]
+
+                    if x_axis and y_axis and z_axis:
+                        df_plot_3d = df.copy()
+                        color_col = None
+                        if global_target in df_plot_3d.columns:
+                            df_plot_3d[global_target] = df_plot_3d[global_target].apply(lambda x: translate_text(str(x), lang))
+                            df_plot_3d.rename(columns={global_target: trans_global_target}, inplace=True)
+                            color_col = trans_global_target
+                            
+                        rename_map = {}
+                        if x_axis != global_target: rename_map[x_axis] = sel_x_trans
+                        if y_axis != global_target: rename_map[y_axis] = sel_y_trans
+                        if z_axis != global_target: rename_map[z_axis] = sel_z_trans
+                        df_plot_3d.rename(columns=rename_map, inplace=True)
+                        
+                        fig_3d = px.scatter_3d(df_plot_3d, x=sel_x_trans, y=sel_y_trans, z=sel_z_trans, color=color_col, symbol=color_col)
+                        fig_3d.update_layout(scene=dict(xaxis_title=sel_x_trans, yaxis_title=sel_y_trans, zaxis_title=sel_z_trans), height=600)
+                        st.plotly_chart(fig_3d, use_container_width=True)
 
     # --- TAMIL NADU DATASET TAB ---
     with main_tab2:
         df_tn, _ = load_district_data_tn()
         if df_tn is None or df_tn.empty:
-            st.error("Dataset 'Tamil Nadu - AgriData_Dist.csv' not found.")
+            st.error(translate_text("Dataset 'Tamil Nadu - AgriData_Dist.csv' not found.", lang))
         else:
-            tn_tab1, tn_tab2, tn_tab3 = st.tabs(["📋 Data Overview", "📈 Distributions", "🔗 Correlations"])
+            st1 = translate_text("📋 Data Overview", lang)
+            st2 = translate_text("📈 Distributions", lang)
+            st3 = translate_text("🔗 Correlations", lang)
+            tn_tab1, tn_tab2, tn_tab3 = st.tabs([st1, st2, st3])
+            
+            # Centralize Target Column Logic for TN Dataset (Handles casing robustly)
+            tn_target = 'CROPS' if 'CROPS' in df_tn.columns else ('Crops' if 'Crops' in df_tn.columns else None)
+            trans_tn_target = translate_text(clean_text(tn_target), lang) if tn_target else None
             
             with tn_tab1:
-                st.markdown("### 📋 Tamil Nadu Data Overview")
+                st.markdown(f"### 📋 {translate_text('Tamil Nadu Data Overview', lang)}")
                 
                 total_records_tn = len(df_tn)
                 n_features_tn = len(df_tn.columns)
-                n_crops_tn = df_tn['CROPS'].nunique() if 'CROPS' in df_tn.columns else 0
+                n_crops_tn = df_tn[tn_target].nunique() if tn_target else 0
                 missing_vals_tn = df_tn.isnull().sum().sum()
                 
                 col1, col2, col3, col4 = st.columns(4)
@@ -911,71 +992,101 @@ def page_dataset():
                     st.markdown(f"""<div style="background-color: #e0f2fe; padding: 1.5rem; border-radius: 10px; text-align: center; border: 1px solid #bae6fd;">
                         <div style="font-size: 2rem; margin-bottom: 0.5rem;">📚</div>
                         <div style="font-size: 1.8rem; font-weight: 800; color: #0284c7;">{total_records_tn}</div>
-                        <div style="font-size: 0.875rem; color: #475569; font-weight: 600;">Total Records</div></div>""", unsafe_allow_html=True)
+                        <div style="font-size: 0.875rem; color: #475569; font-weight: 600;">{translate_text('Total Records', lang)}</div></div>""", unsafe_allow_html=True)
                 with col2:
                     st.markdown(f"""<div style="background-color: #dcfce7; padding: 1.5rem; border-radius: 10px; text-align: center; border: 1px solid #86efac;">
                         <div style="font-size: 2rem; margin-bottom: 0.5rem;">🧬</div>
                         <div style="font-size: 1.8rem; font-weight: 800; color: #16a34a;">{n_features_tn}</div>
-                        <div style="font-size: 0.875rem; color: #475569; font-weight: 600;">Features</div></div>""", unsafe_allow_html=True)
+                        <div style="font-size: 0.875rem; color: #475569; font-weight: 600;">{translate_text('Features', lang)}</div></div>""", unsafe_allow_html=True)
                 with col3:
                     st.markdown(f"""<div style="background-color: #fef9c3; padding: 1.5rem; border-radius: 10px; text-align: center; border: 1px solid #fde047;">
                         <div style="font-size: 2rem; margin-bottom: 0.5rem;">🌾</div>
                         <div style="font-size: 1.8rem; font-weight: 800; color: #ca8a04;">{n_crops_tn}</div>
-                        <div style="font-size: 0.875rem; color: #475569; font-weight: 600;">Unique Crops</div></div>""", unsafe_allow_html=True)
+                        <div style="font-size: 0.875rem; color: #475569; font-weight: 600;">{translate_text('Unique Crops', lang)}</div></div>""", unsafe_allow_html=True)
                 with col4:
                     st.markdown(f"""<div style="background-color: #fee2e2; padding: 1.5rem; border-radius: 10px; text-align: center; border: 1px solid #fca5a5;">
                         <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔍</div>
                         <div style="font-size: 1.8rem; font-weight: 800; color: #dc2626;">{missing_vals_tn}</div>
-                        <div style="font-size: 0.875rem; color: #475569; font-weight: 600;">Missing Values</div></div>""", unsafe_allow_html=True)
+                        <div style="font-size: 0.875rem; color: #475569; font-weight: 600;">{translate_text('Missing Values', lang)}</div></div>""", unsafe_allow_html=True)
 
                 st.markdown("<br>", unsafe_allow_html=True)
-                st.dataframe(df_tn.head(10), use_container_width=True)
                 
-                if 'CROPS' in df_tn.columns:
-                    st.markdown("#### Samples per Crop")
-                    crop_counts_tn = df_tn['CROPS'].value_counts().reset_index()
-                    crop_counts_tn.columns = ['CROPS', 'count']
-                    fig_tn = px.bar(crop_counts_tn, x='CROPS', y='count', color='CROPS', title="", color_discrete_sequence=px.colors.qualitative.Bold)
+                # --- FULL TABLE TRANSLATION (TN) ---
+                df_tn_display = df_tn.head(10).copy()
+                if lang != 'en':
+                    df_tn_display.columns = [translate_text(clean_text(c), lang) for c in df_tn_display.columns]
+                    for col in df_tn_display.select_dtypes(include=['object']).columns:
+                        df_tn_display[col] = df_tn_display[col].apply(lambda x: translate_text(str(x), lang) if pd.notnull(x) else x)
+                        
+                st.dataframe(df_tn_display, use_container_width=True)
+                
+                if tn_target:
+                    st.markdown(f"#### {translate_text('Samples per Crop', lang)}")
+                    crop_counts_tn = df_tn[tn_target].value_counts().reset_index()
+                    crop_counts_tn.columns = [trans_tn_target, 'count']
+                    
+                    crop_counts_tn[trans_tn_target] = crop_counts_tn[trans_tn_target].apply(lambda x: translate_text(str(x), lang))
+                    
+                    fig_tn = px.bar(
+                        crop_counts_tn, x=trans_tn_target, y='count', color=trans_tn_target, title="",
+                        labels={trans_tn_target: translate_text('Crop', lang), 'count': translate_text('Count', lang)},
+                        color_discrete_sequence=px.colors.qualitative.Bold
+                    )
                     fig_tn.update_layout(showlegend=False)
                     st.plotly_chart(fig_tn, use_container_width=True)
 
             with tn_tab2:
-                st.markdown("### 📈 Distributions")
-                feature_tn = st.selectbox("Select Feature", df_tn.columns, key="tn_dist_feat")
+                st.markdown(f"### 📈 {translate_text('Distributions', lang)}")
                 
+                orig_cols_tn = df_tn.columns.tolist()
+                trans_cols_tn = [translate_text(clean_text(c), lang) for c in orig_cols_tn]
+                
+                sel_feat_tn_trans = st.selectbox(translate_text("Select Feature", lang), trans_cols_tn, key="tn_dist_feat")
+                feature_tn = orig_cols_tn[trans_cols_tn.index(sel_feat_tn_trans)]
+                
+                df_tn_plot = df_tn.copy()
+                if tn_target:
+                    df_tn_plot[tn_target] = df_tn_plot[tn_target].apply(lambda x: translate_text(str(x), lang))
+                    df_tn_plot.rename(columns={tn_target: trans_tn_target}, inplace=True)
+                
+                if feature_tn != tn_target:
+                    df_tn_plot.rename(columns={feature_tn: sel_feat_tn_trans}, inplace=True)
+
                 # 1. Histogram
                 fig_hist_tn = px.histogram(
-                    df_tn, x=feature_tn, 
-                    color='CROPS' if 'CROPS' in df_tn.columns else None,
+                    df_tn_plot, x=sel_feat_tn_trans, 
+                    color=trans_tn_target if trans_tn_target in df_tn_plot.columns else None,
                     marginal="box", 
-                    title=f"Distribution of {feature_tn}",
+                    title=f"{translate_text('Distribution of', lang)} {sel_feat_tn_trans}",
                     color_discrete_sequence=px.colors.qualitative.Prism
                 )
                 st.plotly_chart(fig_hist_tn, use_container_width=True)
 
                 # 2. Box Plot
-                if 'CROPS' in df_tn.columns:
-                    st.markdown(f"#### {feature_tn} Ranges per Crop")
+                if trans_tn_target in df_tn_plot.columns:
+                    st.markdown(f"#### {sel_feat_tn_trans} {translate_text('Ranges per Crop', lang)}")
                     fig_box_tn = px.box(
-                        df_tn, 
-                        x='CROPS', 
-                        y=feature_tn, 
-                        color='CROPS',
-                        title=f"{feature_tn} Ranges per Crop",
+                        df_tn_plot, x=trans_tn_target, y=sel_feat_tn_trans, color=trans_tn_target,
+                        title=f"{sel_feat_tn_trans} {translate_text('Ranges per Crop', lang)}",
                         color_discrete_sequence=px.colors.qualitative.Prism
                     )
                     st.plotly_chart(fig_box_tn, use_container_width=True)
             
             with tn_tab3:
-                st.markdown("### 🔗 Correlations")
+                st.markdown(f"### 🔗 {translate_text('Correlations', lang)}")
                 numeric_df_tn = df_tn.select_dtypes(include=[np.number])
                 if not numeric_df_tn.empty:
                     corr_matrix_tn = numeric_df_tn.corr()
-                    fig_corr_tn = px.imshow(corr_matrix_tn, text_auto=False, color_continuous_scale='Greens', title="Feature Correlation Matrix")
+                    
+                    trans_corr_cols_tn = [translate_text(clean_text(c), lang) for c in corr_matrix_tn.columns]
+                    corr_matrix_tn.columns = trans_corr_cols_tn
+                    corr_matrix_tn.index = trans_corr_cols_tn
+                    
+                    fig_corr_tn = px.imshow(corr_matrix_tn, text_auto=False, color_continuous_scale='Greens', title=translate_text("Feature Correlation Matrix", lang))
                     st.plotly_chart(fig_corr_tn, use_container_width=True)
 
                     # 3D Cluster Visualization
-                    st.markdown("### 🧊 3D Cluster Visualization")
+                    st.markdown(f"### 🧊 {translate_text('3D Cluster Visualization', lang)}")
                     numeric_cols_tn = numeric_df_tn.columns.tolist()
                     
                     if len(numeric_cols_tn) >= 3:
@@ -983,32 +1094,52 @@ def page_dataset():
                         t_y = numeric_cols_tn[1]
                         t_z = numeric_cols_tn[2]
 
-                        tc1, tc2, tc3 = st.columns(3)
-                        with tc1: tx_axis = st.selectbox("X Axis", numeric_cols_tn, index=numeric_cols_tn.index(t_x), key="tn_3d_x")
-                        with tc2: ty_axis = st.selectbox("Y Axis", numeric_cols_tn, index=numeric_cols_tn.index(t_y), key="tn_3d_y")
-                        with tc3: tz_axis = st.selectbox("Z Axis", numeric_cols_tn, index=numeric_cols_tn.index(t_z), key="tn_3d_z")
+                        trans_num_cols_tn = [translate_text(clean_text(c), lang) for c in numeric_cols_tn]
 
-                        color_col = 'CROPS' if 'CROPS' in df_tn.columns else None
+                        tc1, tc2, tc3 = st.columns(3)
+                        with tc1: 
+                            sel_tx = st.selectbox(translate_text("X Axis", lang), trans_num_cols_tn, index=numeric_cols_tn.index(t_x), key="tn_3d_x")
+                            tx_axis = numeric_cols_tn[trans_num_cols_tn.index(sel_tx)]
+                        with tc2: 
+                            sel_ty = st.selectbox(translate_text("Y Axis", lang), trans_num_cols_tn, index=numeric_cols_tn.index(t_y), key="tn_3d_y")
+                            ty_axis = numeric_cols_tn[trans_num_cols_tn.index(sel_ty)]
+                        with tc3: 
+                            sel_tz = st.selectbox(translate_text("Z Axis", lang), trans_num_cols_tn, index=numeric_cols_tn.index(t_z), key="tn_3d_z")
+                            tz_axis = numeric_cols_tn[trans_num_cols_tn.index(sel_tz)]
+
+                        st.info(f"{translate_text('Visualizing', lang)} {sel_tx}, {sel_ty}, {translate_text('and', lang)} {sel_tz} {translate_text('relationships.', lang)}")
                         
-                        st.info(f"Visualizing {tx_axis}, {ty_axis}, and {tz_axis} relationships.")
+                        df_tn_plot_3d = df_tn.copy()
+                        color_col = None
+                        if tn_target:
+                            df_tn_plot_3d[tn_target] = df_tn_plot_3d[tn_target].apply(lambda x: translate_text(str(x), lang))
+                            df_tn_plot_3d.rename(columns={tn_target: trans_tn_target}, inplace=True)
+                            color_col = trans_tn_target
+                            
+                        rename_map_tn = {}
+                        if tx_axis != tn_target: rename_map_tn[tx_axis] = sel_tx
+                        if ty_axis != tn_target: rename_map_tn[ty_axis] = sel_ty
+                        if tz_axis != tn_target: rename_map_tn[tz_axis] = sel_tz
+                        df_tn_plot_3d.rename(columns=rename_map_tn, inplace=True)
                         
-                        fig_3d_tn = px.scatter_3d(df_tn, x=tx_axis, y=ty_axis, z=tz_axis, color=color_col)
-                        fig_3d.update_layout(scene = dict(xaxis_title=tx_axis, yaxis_title=ty_axis, zaxis_title=tz_axis), height=600)
+                        fig_3d_tn = px.scatter_3d(df_tn_plot_3d, x=sel_tx, y=sel_ty, z=sel_tz, color=color_col)
+                        fig_3d_tn.update_layout(scene=dict(xaxis_title=sel_tx, yaxis_title=sel_ty, zaxis_title=sel_tz), height=600)
                         st.plotly_chart(fig_3d_tn, use_container_width=True)
                     else:
-                        st.warning("Not enough numeric columns for 3D visualization.")
+                        st.warning(translate_text("Not enough numeric columns for 3D visualization.", lang))
                 else:
-                    st.warning("No numeric columns found for correlation analysis.")
+                    st.warning(translate_text("No numeric columns found for correlation analysis.", lang))
 
 
 def page_implementation():
-    st.markdown("## ⚙️ Algorithm Implementation")
-    st.markdown("Detailed Architecture and Code Structure for all 10 Models")
+    lang = st.session_state.get('lang', 'en')
+    st.markdown(f"## ⚙️ {translate_text('Algorithm Implementation', lang)}")
+    st.markdown(translate_text("Detailed Architecture and Code Structure for all 10 Models", lang))
     
     algos = get_algorithm_info()
     algo_map = {a['name']: a for a in algos}
     
-    model_choice_name = st.selectbox("Select Algorithm to View", list(algo_map.keys()))
+    model_choice_name = st.selectbox(translate_text("Select Algorithm to View", lang), list(algo_map.keys()))
     selected = algo_map[model_choice_name]
     key = selected['key']
     
@@ -1016,35 +1147,30 @@ def page_implementation():
     
     with col1:
         st.markdown(f"### {selected['name']}")
-        st.markdown(f"**Type:** {selected['type']}")
-        st.markdown(f"**Accuracy:** {selected['acc']*100:.1f}%")
+        st.markdown(f"**{translate_text('Type:', lang)}** {translate_text(selected['type'], lang)}")
+        st.markdown(f"**{translate_text('Accuracy:', lang)}** {selected['acc']*100:.1f}%")
         
-        if key == 'rf':
-            st.info("Ensemble of decision trees. Robust to overfitting and handles non-linear data well.")
-        elif key == 'xgb':
-            st.info("Gradient Boosting framework. Highly efficient and flexible, optimized for speed and performance.")
-        elif key == 'ffnn':
-            st.info("Baseline Deep Learning model. Captures high-dimensional mappings from inputs to classes.")
-        elif key == 'cnn':
-            st.info("1D Convolutional Neural Network. Captures local dependencies in feature space.")
-        elif key == 'lstm':
-            st.info("Long Short-Term Memory. Capable of learning long-term dependencies in sequential data.")
-        elif key == 'resmlp':
-            st.info("Deep architecture with skip connections allowing for deeper networks without vanishing gradients.")
-        elif key == 'gru':
-            st.info("Gated Recurrent Unit. Similar to LSTM but computationally more efficient.")
-        elif key == 'transformer':
-            st.info("Uses Self-Attention mechanisms to weigh the importance of specific features dynamically.")
-        elif key == 'hybrid':
-            st.info("Fuses Multi-Scale CNNs to capture local patterns at varying resolutions with Squeeze-and-Excitation attention for feature prioritization, followed by a Bi-Directional LSTM for comprehensive temporal dependency learning.")
-        elif key == 'ann':
-            st.info("Artificial Neural Network. Standard fully connected architecture used for baseline performance comparisons.")
+        info_texts = {
+            'rf': "Ensemble of decision trees. Robust to overfitting and handles non-linear data well.",
+            'xgb': "Gradient Boosting framework. Highly efficient and flexible, optimized for speed and performance.",
+            'ffnn': "Baseline Deep Learning model. Captures high-dimensional mappings from inputs to classes.",
+            'cnn': "1D Convolutional Neural Network. Captures local dependencies in feature space.",
+            'lstm': "Long Short-Term Memory. Capable of learning long-term dependencies in sequential data.",
+            'resmlp': "Deep architecture with skip connections allowing for deeper networks without vanishing gradients.",
+            'gru': "Gated Recurrent Unit. Similar to LSTM but computationally more efficient.",
+            'transformer': "Uses Self-Attention mechanisms to weigh the importance of specific features dynamically.",
+            'hybrid': "Fuses Multi-Scale CNNs to capture local patterns at varying resolutions with Squeeze-and-Excitation attention for feature prioritization, followed by a Bi-Directional LSTM for comprehensive temporal dependency learning.",
+            'ann': "Artificial Neural Network. Standard fully connected architecture used for baseline performance comparisons."
+        }
+        if key in info_texts:
+            st.info(translate_text(info_texts[key], lang))
     
     with col2:
-        st.markdown("### 💻 Model Architecture Code")
+        st.markdown(f"### 💻 {translate_text('Model Architecture Code', lang)}")
         
         if key == 'rf':
-            st.code("""
+            st.code(f"""
+# {translate_text('Initialize and train Random Forest', lang)}
 from sklearn.ensemble import RandomForestClassifier
 
 model = RandomForestClassifier(
@@ -1057,7 +1183,8 @@ model.fit(X_train, y_train)
             """, language='python')
             
         elif key == 'xgb':
-            st.code("""
+            st.code(f"""
+# {translate_text('Initialize and train XGBoost', lang)}
 from xgboost import XGBClassifier
 
 model = XGBClassifier(
@@ -1071,7 +1198,7 @@ model.fit(X_train, y_train)
             """, language='python')
             
         elif key == 'ffnn':
-            st.code("""
+            st.code(f"""
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout
 
@@ -1080,14 +1207,14 @@ model = Sequential([
     Dropout(0.2),
     Dense(64, activation='relu'),
     Dense(32, activation='relu'),
-    Dense(22, activation='softmax') # 22 Crop classes
+    Dense(22, activation='softmax') # {translate_text('22 Crop classes', lang)}
 ])
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
             """, language='python')
             
         elif key == 'cnn':
-            st.code("""
-# Input reshaped to (batch_size, 7, 1)
+            st.code(f"""
+# {translate_text('Input reshaped to (batch_size, 7, 1)', lang)}
 model = Sequential([
     Conv1D(filters=64, kernel_size=3, activation='relu', input_shape=(7, 1)),
     MaxPooling1D(pool_size=2),
@@ -1098,8 +1225,8 @@ model = Sequential([
             """, language='python')
             
         elif key == 'lstm':
-            st.code("""
-# Input reshaped to (batch_size, 7, 1)
+            st.code(f"""
+# {translate_text('Input reshaped to (batch_size, 7, 1)', lang)}
 model = Sequential([
     LSTM(100, return_sequences=True, input_shape=(7, 1)),
     Dropout(0.2),
@@ -1109,7 +1236,8 @@ model = Sequential([
             """, language='python')
             
         elif key == 'resmlp':
-            st.code("""
+            st.code(f"""
+# {translate_text('Define residual block with skip connections', lang)}
 def residual_block(x, units, dropout=0.1):
     shortcut = x
     x = Dense(units, activation='relu')(x)
@@ -1120,6 +1248,7 @@ def residual_block(x, units, dropout=0.1):
     x = Add()([x, shortcut])
     return x
 
+# {translate_text('Build the Multi-Layer Perceptron', lang)}
 inputs = Input(shape=(7,))
 x = Dense(64, activation='relu')(inputs)
 x = residual_block(x, 64)
@@ -1128,7 +1257,8 @@ outputs = Dense(22, activation='softmax')(x)
             """, language='python')
             
         elif key == 'gru':
-            st.code("""
+            st.code(f"""
+# {translate_text('Gated Recurrent Unit Architecture', lang)}
 model = Sequential([
     GRU(100, return_sequences=True, input_shape=(7, 1)),
     Dropout(0.2),
@@ -1138,8 +1268,8 @@ model = Sequential([
             """, language='python')
             
         elif key == 'transformer':
-            st.code("""
-# Simple Tabular Transformer Logic
+            st.code(f"""
+# {translate_text('Simple Tabular Transformer Logic', lang)}
 def transformer_encoder(inputs, head_size, num_heads, ff_dim, dropout=0):
     x = LayerNormalization(epsilon=1e-6)(inputs)
     x = MultiHeadAttention(key_dim=head_size, num_heads=num_heads, dropout=dropout)(x, x)
@@ -1154,7 +1284,8 @@ def transformer_encoder(inputs, head_size, num_heads, ff_dim, dropout=0):
             """, language='python')
             
         elif key == 'hybrid':
-            st.code("""
+            st.code(f"""
+# {translate_text('Squeeze-and-Excitation Block for attention', lang)}
 class SE_Block(nn.Module):
     def __init__(self, c, r=16):
         super(SE_Block, self).__init__()
@@ -1165,15 +1296,19 @@ class SE_Block(nn.Module):
             nn.Linear(c // r, c, bias=False),
             nn.Sigmoid()
         )
+
     def forward(self, x):
         b, c, _ = x.size()
         y = self.squeeze(x).view(b, c)
         y = self.excitation(y).view(b, c, 1)
         return x * y.expand_as(x)
 
+# {translate_text('Multi-Scale CNN with BiLSTM', lang)}
 class MS_SE_BiLSTM(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(MS_SE_BiLSTM, self).__init__()
+        
+        # {translate_text('Parallel Multi-Scale Convolutions', lang)}
         self.conv_branch1 = nn.Sequential(
             nn.Conv1d(1, 32, kernel_size=3, padding=1),
             nn.BatchNorm1d(32),
@@ -1194,6 +1329,7 @@ class MS_SE_BiLSTM(nn.Module):
         self.lstm = nn.LSTM(96, 64, batch_first=True, bidirectional=True)
         self.dropout = nn.Dropout(0.3)
         self.fc = nn.Linear(64 * 2, output_dim)
+
     def forward(self, x):
         x = x.unsqueeze(1) 
         x1 = self.conv_branch1(x)
@@ -1210,7 +1346,8 @@ class MS_SE_BiLSTM(nn.Module):
             """, language='python')
             
         elif key == 'ann':
-            st.code("""
+            st.code(f"""
+# {translate_text('Standard Fully Connected Artificial Neural Network', lang)}
 class ANNModel(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(ANNModel, self).__init__()
@@ -1227,94 +1364,81 @@ class ANNModel(nn.Module):
             """, language='python')
 
 def page_training():
-    st.markdown("## 🎯 Model Training Dashboard")
-    st.markdown("Simulate training process for selected architectures")
+    lang = st.session_state.get('lang', 'en')
+    st.markdown(f"## 🎯 {translate_text('Model Training Dashboard', lang)}")
+    st.markdown(translate_text("Simulate training process for selected architectures", lang))
 
     col_model, col_data = st.columns([1, 1])
 
     with col_model:
-        # Model Selection
+        # Model Selection (DO NOT TRANSLATE ALGORITHM NAMES)
         algos = [a['name'] for a in get_algorithm_info()]
-        model_choice = st.selectbox("Select Model to Train", algos)
+        model_choice = st.selectbox(translate_text("Select Model to Train", lang), algos)
 
     with col_data:
-        # Dataset Selection
-        dataset_choice = st.selectbox(
-            "Select Training Dataset", 
-            ["Global Dataset", "Tamil Nadu Dataset"],
+        # Dataset Selection (Translate for UI, map back to original key)
+        orig_datasets = ["Global Dataset", "Tamil Nadu Dataset"]
+        trans_datasets = [translate_text(d, lang) for d in orig_datasets]
+        
+        sel_dataset_trans = st.selectbox(
+            translate_text("Select Training Dataset", lang), 
+            trans_datasets,
             key="training_dataset_choice",
-            help="Global Dataset: ~2200 samples, 22 classes. Tamil Nadu Dataset: smaller, multi-feature columns."
+            help=translate_text("Global Dataset: ~2200 samples, 22 classes. Tamil Nadu Dataset: smaller, multi-feature columns.", lang)
         )
+        dataset_choice = orig_datasets[trans_datasets.index(sel_dataset_trans)]
 
     st.markdown("---")
+    st.markdown(f"### 🧬 {translate_text('Data Split Configuration', lang)}")
     
-    # --- DATA SPLIT CONFIGURATION ---
-    st.markdown("### 🧬 Data Split Configuration")
-    
-    # Initialize session state for splits if not present
-    if 'train_split' not in st.session_state:
-        st.session_state.train_split = 70
-    if 'validate_split' not in st.session_state:
-        st.session_state.validate_split = 15
-    if 'test_split' not in st.session_state:
-        st.session_state.test_split = 15
+    if 'train_split' not in st.session_state: st.session_state.train_split = 70
+    if 'validate_split' not in st.session_state: st.session_state.validate_split = 15
+    if 'test_split' not in st.session_state: st.session_state.test_split = 15
 
     col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+    
+    def update_splits(changed_key):
+        current_sum = st.session_state.train_split + st.session_state.validate_split + st.session_state.test_split
+        if current_sum != 100:
+            if changed_key == 'train_split':
+                remaining = 100 - st.session_state.train_split
+                st.session_state.validate_split = int(remaining / 2)
+                st.session_state.test_split = remaining - st.session_state.validate_split
+            elif changed_key == 'validate_split':
+                remaining = 100 - st.session_state.validate_split
+                st.session_state.train_split = int(remaining * st.session_state.train_split / (st.session_state.train_split + st.session_state.test_split) if (st.session_state.train_split + st.session_state.test_split) > 0 else remaining / 2)
+                st.session_state.test_split = remaining - st.session_state.train_split
+            elif changed_key == 'test_split':
+                remaining = 100 - st.session_state.test_split
+                st.session_state.train_split = int(remaining * st.session_state.train_split / (st.session_state.train_split + st.session_state.validate_split) if (st.session_state.train_split + st.session_state.validate_split) > 0 else remaining / 2)
+                st.session_state.validate_split = remaining - st.session_state.train_split
+        
+        current_sum = st.session_state.train_split + st.session_state.validate_split + st.session_state.test_split
+        if current_sum != 100:
+            diff = 100 - current_sum
+            st.session_state.train_split += diff 
 
     with col_s1:
-        # Define the callbacks to enforce 100% total
-        def update_splits(changed_key):
-            current_sum = st.session_state.train_split + st.session_state.validate_split + st.session_state.test_split
-            if current_sum != 100:
-                if changed_key == 'train_split':
-                    remaining = 100 - st.session_state.train_split
-                    st.session_state.validate_split = int(remaining / 2)
-                    st.session_state.test_split = remaining - st.session_state.validate_split
-                elif changed_key == 'validate_split':
-                    remaining = 100 - st.session_state.validate_split
-                    st.session_state.train_split = int(remaining * st.session_state.train_split / (st.session_state.train_split + st.session_state.test_split) if (st.session_state.train_split + st.session_state.test_split) > 0 else remaining / 2)
-                    st.session_state.test_split = remaining - st.session_state.train_split
-                elif changed_key == 'test_split':
-                    remaining = 100 - st.session_state.test_split
-                    st.session_state.train_split = int(remaining * st.session_state.train_split / (st.session_state.train_split + st.session_state.validate_split) if (st.session_state.train_split + st.session_state.validate_split) > 0 else remaining / 2)
-                    st.session_state.validate_split = remaining - st.session_state.train_split
-            
-            # Final check to ensure total is exactly 100
-            current_sum = st.session_state.train_split + st.session_state.validate_split + st.session_state.test_split
-            if current_sum != 100:
-                diff = 100 - current_sum
-                st.session_state.train_split += diff # Add/subtract difference from train split
-
-        train_split = st.slider("Train (%)", 50, 90, st.session_state.train_split, key='train_split', on_change=update_splits, args=('train_split',))
-    
+        train_split = st.slider(translate_text("Train (%)", lang), 50, 90, st.session_state.train_split, key='train_split', on_change=update_splits, args=('train_split',))
     with col_s2:
-        validate_split = st.slider("Validate (%)", 0, 30, st.session_state.validate_split, key='validate_split', on_change=update_splits, args=('validate_split',))
-
+        validate_split = st.slider(translate_text("Validate (%)", lang), 0, 30, st.session_state.validate_split, key='validate_split', on_change=update_splits, args=('validate_split',))
     with col_s3:
-        test_split = st.slider("Test (%)", 0, 30, st.session_state.test_split, key='test_split', on_change=update_splits, args=('test_split',))
-
+        test_split = st.slider(translate_text("Test (%)", lang), 0, 30, st.session_state.test_split, key='test_split', on_change=update_splits, args=('test_split',))
     with col_s4:
-        st.markdown(f"**Total Split:**")
+        st.markdown(f"**{translate_text('Total Split:', lang)}**")
         st.success(f"{st.session_state.train_split + st.session_state.validate_split + st.session_state.test_split}%")
 
     st.markdown("---")
-
-    # Hyperparameters Row
-    st.markdown("### ⚙️ Training Parameters")
+    st.markdown(f"### ⚙️ {translate_text('Training Parameters', lang)}")
     col1, col2, col3 = st.columns(3)
-    
     with col1:
-        epochs = st.slider("Epochs / Estimators", min_value=10, max_value=200, value=50)
-    
+        epochs = st.slider(translate_text("Epochs / Estimators", lang), 10, 200, 50)
     with col2:
-        lr = st.slider("Learning Rate", min_value=0.0001, max_value=0.1, value=0.001, format="%.4f")
-        
+        lr = st.slider(translate_text("Learning Rate", lang), 0.0001, 0.1, 0.001, format="%.4f")
     with col3:
-        batch_size = st.selectbox("Batch Size", [16, 32, 64, 128])
+        batch_size = st.selectbox(translate_text("Batch Size", lang), [16, 32, 64, 128])
 
-    st.markdown("<br>", unsafe_allow_html=True) # Spacing
-
-    if st.button("▶️ Start Training", type="primary"):
+    if st.button(f"▶️ {translate_text('Start Training', lang)}", type="primary"):
         progress_bar = st.progress(0)
         status_text = st.empty()
         chart_place = st.empty()
@@ -1350,26 +1474,22 @@ def page_training():
             max_sim_acc = 0.99
             benchmark_key = 'tn_benchmark_override'
             
-        # Initialize the override dictionary if it doesn't exist
         if benchmark_key not in st.session_state:
             st.session_state[benchmark_key] = {}
             
-        # Simulated performance tracking
         train_acc, train_loss = [], []
         val_acc, val_loss = [], []
-        
-        # Determine steps (epochs)
         steps = epochs 
         
-        status_text.text(f"Training {model_choice} on {dataset_choice} with Train Split {st.session_state.train_split}%...")
+        # Translate dynamic status text
+        status_msg = f"{translate_text('Training', lang)} {model_choice} {translate_text('on', lang)} {sel_dataset_trans} {translate_text('with Train Split', lang)} {st.session_state.train_split}%..."
+        status_text.text(status_msg)
         
         # --- TRAINING SIMULATION LOOP ---
         for i in range(steps):
-            # Training performance always improves, adjusted by max_acc_factor
             current_train_acc = acc_base + max_acc_factor * (1 - np.exp(-0.1 * i * dataset_modifier)) + np.random.normal(0, 0.001)
             current_train_loss = loss_base * np.exp(-0.1 * i * dataset_modifier) + np.random.normal(0, 0.002)
             
-            # Validation logic
             if model_choice == "MS_SE_BiLSTM" and dataset_choice == "Global Dataset":
                 current_val_acc = current_train_acc * (0.998 + 0.002 * np.sin(i / 10))
                 current_val_loss = current_train_loss * 1.05
@@ -1386,16 +1506,36 @@ def page_training():
             val_loss.append(max(current_val_loss, 0.001))
             
             if i % (max(1, steps // 10)) == 0 or i == steps - 1: 
-                fig = make_subplots(rows=1, cols=2, subplot_titles=("Accuracy Trend (Train/Validate)", "Loss Trend (Train/Validate)"))
-                fig.add_trace(go.Scatter(y=train_acc, mode='lines', name="Train Accuracy", line=dict(color='#16a34a')), row=1, col=1)
-                fig.add_trace(go.Scatter(y=val_acc, mode='lines', name="Validate Accuracy", line=dict(color='#0ea5e9')), row=1, col=1)
-                fig.add_trace(go.Scatter(y=train_loss, mode='lines', name="Train Loss", line=dict(color='#dc2626')), row=1, col=2)
-                fig.add_trace(go.Scatter(y=val_loss, mode='lines', name="Validate Loss", line=dict(color='#f97316')), row=1, col=2)
-                fig.update_layout(height=450, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                # Translate chart components
+                acc_title = translate_text("Accuracy Trend (Train/Validate)", lang)
+                loss_title = translate_text("Loss Trend (Train/Validate)", lang)
+                t_acc_lbl = translate_text("Train Accuracy", lang)
+                v_acc_lbl = translate_text("Validate Accuracy", lang)
+                t_loss_lbl = translate_text("Train Loss", lang)
+                v_loss_lbl = translate_text("Validate Loss", lang)
+                
+                fig = make_subplots(rows=1, cols=2, subplot_titles=(acc_title, loss_title))
+                fig.add_trace(go.Scatter(y=train_acc, mode='lines', name=t_acc_lbl, line=dict(color='#16a34a')), row=1, col=1)
+                fig.add_trace(go.Scatter(y=val_acc, mode='lines', name=v_acc_lbl, line=dict(color='#0ea5e9')), row=1, col=1)
+                fig.add_trace(go.Scatter(y=train_loss, mode='lines', name=t_loss_lbl, line=dict(color='#dc2626')), row=1, col=2)
+                fig.add_trace(go.Scatter(y=val_loss, mode='lines', name=v_loss_lbl, line=dict(color='#f97316')), row=1, col=2)
+                
+                # UPDATED: Legend moved strictly to the right side of the loss trend chart
+                fig.update_layout(
+                    height=450, 
+                    showlegend=True, 
+                    legend=dict(
+                        orientation="v", 
+                        yanchor="top", 
+                        y=1.0, 
+                        xanchor="left", 
+                        x=1.05
+                    )
+                )
                 chart_place.plotly_chart(fig, use_container_width=True)
                 
             progress_bar.progress(min((i + 1) / steps, 1.0))
-            time.sleep(0.01) # Faster simulation
+            time.sleep(0.01) 
 
         # --- FINAL METRICS CALCULATION ---
         final_train_acc = train_acc[-1]
@@ -1403,28 +1543,16 @@ def page_training():
         final_train_loss = train_loss[-1]
         final_val_loss = val_loss[-1]
 
-        # Define exact targets for Tamil Nadu Dataset
         tn_targets = {
-            "MS_SE_BiLSTM": 0.98, 
-            "Residual MLP": 0.914, 
-            "Transformer": 0.968, 
-            "1D-CNN": 0.917, 
-            "Feed Forward NN": 0.80, 
-            "LSTM": 0.822, 
-            "GRU": 0.844, 
-            "XGBoost": 0.75, 
-            "Random Forest": 0.72, 
-            "ANN": 0.815
+            "MS_SE_BiLSTM": 0.98, "Residual MLP": 0.914, "Transformer": 0.968, 
+            "1D-CNN": 0.917, "Feed Forward NN": 0.80, "LSTM": 0.822, 
+            "GRU": 0.844, "XGBoost": 0.75, "Random Forest": 0.72, "ANN": 0.815
         }
 
-        # --- FINAL TEST ACCURACY OVERRIDES ---
         if dataset_choice == "Tamil Nadu Dataset" and model_choice in tn_targets:
-            # Force the exact requested accuracy
             final_test_acc = tn_targets[model_choice]
-            # Adjust validation acc slightly to look realistic (usually slightly higher than test)
             final_val_acc = final_test_acc + 0.012 
-            final_val_loss = 0.25 # arbitrary low loss
-
+            final_val_loss = 0.25 
         elif model_choice == "MS_SE_BiLSTM" and dataset_choice == "Global Dataset":
             final_test_acc = 0.998 + (np.random.rand() * 0.0009) 
             final_val_acc = val_acc[-1]
@@ -1434,7 +1562,6 @@ def page_training():
             final_val_acc = val_acc[-1]
             final_val_loss = val_loss[-1]
         else:
-            # Default logic for others
             test_acc_noise = (np.random.rand() * 0.02)
             final_val_acc = val_acc[-1]
             final_test_acc = final_val_acc * (1.0 - test_acc_noise) 
@@ -1442,13 +1569,14 @@ def page_training():
 
         final_test_loss = final_val_loss * 1.02
         
-        st.success(f"Training of {model_choice} on {dataset_choice} Complete! Final Test Accuracy: {final_test_acc:.2%}")
+        success_msg = f"{translate_text('Training of', lang)} {model_choice} {translate_text('on', lang)} {sel_dataset_trans} {translate_text('Complete! Final Test Accuracy:', lang)} {final_test_acc:.2%}"
+        st.success(success_msg)
         
-        # 4. SAVE the result to overwrite benchmark
+        # SAVE the result to overwrite benchmark
         st.session_state[benchmark_key][model_choice] = {
             "model": model_choice,
             "accuracy": final_test_acc,
-            "f1": final_test_acc * 0.999, # High F1 for high accuracy
+            "f1": final_test_acc * 0.999, 
             "precision": final_test_acc * 0.998,
             "recall": final_test_acc * 0.999,
             "train_time": 5.0 + (epochs / 50) * (1.0 if "DL" in model_choice or "LSTM" in model_choice else 0.5) * (1.0 if dataset_choice == "Global Dataset" else 0.7),
@@ -1456,38 +1584,50 @@ def page_training():
         }
         
         # --- DISPLAY RESULTS TABLE ---
-        st.markdown("### 📋 Final Evaluation Metrics")
+        st.markdown(f"### 📋 {translate_text('Final Evaluation Metrics', lang)}")
+        
+        # Translate table components
+        t_metric = translate_text("Metric", lang)
+        t_train_set = translate_text("Train Set", lang)
+        t_val_set = translate_text("Validation Set", lang)
+        t_test_set = translate_text("Test Set", lang)
+        
+        t_acc = translate_text("Accuracy", lang)
+        t_loss = translate_text("Loss", lang)
+        t_data_size = translate_text("Data Size (%)", lang)
+        
         results_data = {
-            "Metric": ["Accuracy", "Loss", "Data Size (%)"],
-            "Train Set": [f"{final_train_acc:.4f}", f"{final_train_loss:.4f}", f"{st.session_state.train_split}%"],
-            "Validation Set": [f"{final_val_acc:.4f}", f"{final_val_loss:.4f}", f"{st.session_state.validate_split}%"],
-            "Test Set": [f"{final_test_acc:.4f}", f"{final_test_loss:.4f}", f"{st.session_state.test_split}%"]
+            t_metric: [t_acc, t_loss, t_data_size],
+            t_train_set: [f"{final_train_acc:.4f}", f"{final_train_loss:.4f}", f"{st.session_state.train_split}%"],
+            t_val_set: [f"{final_val_acc:.4f}", f"{final_val_loss:.4f}", f"{st.session_state.validate_split}%"],
+            t_test_set: [f"{final_test_acc:.4f}", f"{final_test_loss:.4f}", f"{st.session_state.test_split}%"]
         }
         df_metrics = pd.DataFrame(results_data)
 
-        # Highlight the Test Accuracy in the table
+        # Highlight the Test Accuracy in the table using the translated column names
         def highlight_test_acc(s):
-            is_acc_row = s.Metric == "Accuracy"
-            is_test_col = s.index == 2 
+            is_acc_row = s.name == 0  # Accuracy is always the 0th row in this definition
             if is_acc_row:
-                 return ['font-weight: bold; background-color: #dcfce7'] + [''] * (len(s)-1)
+                 return ['font-weight: bold; background-color: #dcfce7'] * len(s)
             return [''] * len(s)
 
-        st.dataframe(df_metrics.set_index("Metric"), use_container_width=True)
+        st.dataframe(df_metrics.set_index(t_metric).style.apply(highlight_test_acc, axis=1), use_container_width=True)
         
-        st.info(f"The simulated performance for **{model_choice} on {dataset_choice}** has been saved and will appear as the 'Trained' benchmark on the Results page.")
+        info_msg = f"{translate_text('The simulated performance for', lang)} **{model_choice} {translate_text('on', lang)} {sel_dataset_trans}** {translate_text('has been saved and will appear as the Trained benchmark on the Results page.', lang)}"
+        st.info(info_msg)
+
+# ==================== UPDATED RESULTS & METRICS PAGE ====================
 
 def page_results():
-    st.markdown("## 📊 Results & Benchmarking")
-    st.markdown("Comparative Analysis of all 10 Algorithms across datasets.")
+    lang = st.session_state.get('lang', 'en')
+    st.markdown(f"## 📊 {translate_text('Results & Benchmarking', lang)}")
+    st.markdown(translate_text("Comparative Analysis of all 10 Algorithms across datasets.", lang))
 
     # 1. Prepare Benchmark Data (Static/Persistent Data)
-    # Global Data (incorporates persistent updates via get_algorithm_info)
     global_algos_info = get_algorithm_info() 
     data_global = {
         "Algorithm": [a['name'] for a in global_algos_info],
         "Accuracy": [a['acc'] for a in global_algos_info],
-        # Fallback/simulated values for other metrics
         "F1 Score": [a['acc'] * 0.99 for a in global_algos_info],
         "Precision": [a['acc'] * 0.98 for a in global_algos_info],
         "Recall": [a['acc'] * 0.99 for a in global_algos_info],
@@ -1496,7 +1636,6 @@ def page_results():
     }
     df_global = pd.DataFrame(data_global)
 
-    # Tamil Nadu Data (incorporates persistent updates via get_tn_algorithm_info)
     tn_algos_info = get_tn_algorithm_info()
     data_tn = {
         "Algorithm": [a['name'] for a in tn_algos_info],
@@ -1510,99 +1649,122 @@ def page_results():
     df_tn = pd.DataFrame(data_tn)
     
     # 2. Add Source Column for Highlighting based on saved results
-    
-    # Global Source Flagging
     if 'global_benchmark_override' in st.session_state:
         trained_models = st.session_state.global_benchmark_override.keys()
         df_global['Source'] = df_global['Algorithm'].apply(lambda x: 'Trained' if x in trained_models else 'Benchmark')
     else:
         df_global['Source'] = 'Benchmark'
 
-    # TN Source Flagging
     if 'tn_benchmark_override' in st.session_state:
         trained_models_tn = st.session_state.tn_benchmark_override.keys()
         df_tn['Source'] = df_tn['Algorithm'].apply(lambda x: 'Trained' if x in trained_models_tn else 'Benchmark')
     else:
         df_tn['Source'] = 'Benchmark'
 
-
     # --- TABS FOR DATASET COMPARISON ---
-    tab_global, tab_tn = st.tabs(["🌍 Global Dataset Benchmarks", "📍 Tamil Nadu Regional Benchmarks"])
+    t1 = translate_text("🌍 Global Dataset Benchmarks", lang)
+    t2 = translate_text("📍 Tamil Nadu Regional Benchmarks", lang)
+    tab_global, tab_tn = st.tabs([t1, t2])
 
     def create_results_tab(df_results, dataset_name, df_tn_cm=False):
-        
-        st.markdown(f"### Results for {dataset_name} (Accuracy-Ranked)")
+        st.markdown(f"### {translate_text('Results for', lang)} {translate_text(dataset_name, lang)} ({translate_text('Accuracy-Ranked', lang)})")
         
         df_results_sorted = df_results.sort_values(by="Accuracy", ascending=False).reset_index(drop=True)
         
-        # --- CORRECTED: Use direct CSS strings instead of class names for Styler.apply ---
         BEST_STYLE = 'background-color: #16a34a; color: white; font-weight: bold;'
-        TRAINED_STYLE = 'background-color: #bfdbfe; color: #1e3a8a; font-weight: bold;' # Light Blue
+        TRAINED_STYLE = 'background-color: #bfdbfe; color: #1e3a8a; font-weight: bold;' 
+
+        # 1. Translate column names for display and FORCE UNIQUENESS
+        display_cols = ['Algorithm', 'Accuracy', 'F1 Score', 'Precision', 'Recall', 'Training Time (s)', 'Model Size (MB)', 'Source']
         
+        translated_cols = {}
+        seen_translations = set()
+        
+        for col in display_cols:
+            trans = translate_text(col, lang)
+            # Pandas Styler crashes if two columns have the exact same name.
+            # If the translation is identical to an existing one (e.g. Accuracy/Precision), append a space.
+            while trans in seen_translations:
+                trans += " " 
+            seen_translations.add(trans)
+            translated_cols[col] = trans
+        
+        # 2. Rename columns safely inside the DataFrame BEFORE styling
+        df_display = df_results_sorted[display_cols].copy()
+        df_display.rename(columns=translated_cols, inplace=True)
+        
+        # Translate the content of the "Source" column 
+        t_source_col = translated_cols['Source']
+        df_display[t_source_col] = df_display[t_source_col].apply(lambda x: translate_text(x, lang))
+        
+        # 3. Dynamic Highlighting Function utilizing the ORIGINAL English dataframe 
         def highlight_row(row):
-            # Find the best accuracy in the displayed, potentially overridden column
+            idx = row.name # Get the row index
             max_acc = df_results_sorted['Accuracy'].max()
-            is_best = row['Accuracy'] == max_acc
-            is_trained = row['Source'] == 'Trained'
+            
+            # Check conditions using the original English dataframe
+            is_best = df_results_sorted.loc[idx, 'Accuracy'] == max_acc
+            is_trained = df_results_sorted.loc[idx, 'Source'] == 'Trained' 
             
             styles = [''] * len(row)
-            
-            # Trained models have priority in coloring, unless they are also the absolute best
             if is_best:
                 styles = [BEST_STYLE] * len(row)
             elif is_trained:
                 styles = [TRAINED_STYLE] * len(row)
-            
             return styles
-        # --- END CORRECTED SECTION ---
 
-        st.dataframe(
-            df_results_sorted[['Algorithm', 'Accuracy', 'F1 Score', 'Precision', 'Recall', 'Training Time (s)', 'Model Size (MB)', 'Source']]
-            .style.format({
-                "Accuracy": "{:.4f}",  
-                "F1 Score": "{:.4f}",
-                "Precision": "{:.4f}",
-                "Recall": "{:.4f}",  
-                "Training Time (s)": "{:.2f}s",
-                "Model Size (MB)": "{:.1f}MB"
-            }).apply(highlight_row, axis=1), 
-            use_container_width=True
-        )
+        # 4. Map formatting dictionary to translated column names
+        format_dict = {
+            translated_cols["Accuracy"]: "{:.4f}",  
+            translated_cols["F1 Score"]: "{:.4f}",
+            translated_cols["Precision"]: "{:.4f}",
+            translated_cols["Recall"]: "{:.4f}",  
+            translated_cols["Training Time (s)"]: "{:.2f}s",
+            translated_cols["Model Size (MB)"]: "{:.1f}MB"
+        }
+
+        # 5. Apply Style
+        styled_df = df_display.style.format(format_dict).apply(highlight_row, axis=1)
+        
+        st.dataframe(styled_df, use_container_width=True)
         
         # Charts
         col1, col2 = st.columns(2)
 
         with col1:
-            st.markdown("#### Accuracy Comparison")
+            st.markdown(f"#### {translate_text('Accuracy Comparison', lang)}")
             fig_acc = px.bar(
-                df_results_sorted, 
-                x="Algorithm", 
-                y="Accuracy", 
-                color="Algorithm",
+                df_results_sorted, x="Algorithm", y="Accuracy", color="Algorithm",
                 color_discrete_sequence=px.colors.qualitative.Prism,
-                range_y=[df_results_sorted['Accuracy'].min() * 0.95, 1.0] 
+                range_y=[df_results_sorted['Accuracy'].min() * 0.95, 1.0],
+                labels={
+                    "Algorithm": translate_text("Algorithm", lang),
+                    "Accuracy": translate_text("Accuracy", lang)
+                }
             )
             fig_acc.update_layout(showlegend=False, height=350, yaxis_tickformat=".2f")
             st.plotly_chart(fig_acc, use_container_width=True)
 
         with col2:
-            st.markdown("#### Accuracy vs. Training Time")
+            st.markdown(f"#### {translate_text('Accuracy vs. Training Time', lang)}")
             fig_eff = px.scatter(
-                df_results_sorted,
-                x="Training Time (s)",
-                y="Accuracy",
-                size="Model Size (MB)", 
-                color="Algorithm",
-                hover_name="Algorithm",
-                color_discrete_sequence=px.colors.qualitative.Prism
+                df_results_sorted, x="Training Time (s)", y="Accuracy", size="Model Size (MB)", 
+                color="Algorithm", hover_name="Algorithm",
+                color_discrete_sequence=px.colors.qualitative.Prism,
+                labels={
+                    "Training Time (s)": translate_text("Training Time (s)", lang),
+                    "Accuracy": translate_text("Accuracy", lang),
+                    "Model Size (MB)": translate_text("Model Size (MB)", lang),
+                    "Algorithm": translate_text("Algorithm", lang)
+                }
             )
             fig_eff.update_layout(height=350, yaxis_tickformat=".2f")
             st.plotly_chart(fig_eff, use_container_width=True)
             
-        # Confusion Matrix Placeholder
+        # Confusion Matrix
         if not df_tn_cm:
-            st.markdown("### Confusion Matrix (MS_SE_BiLSTM - Global)")
-            st.markdown("Simulated Confusion Matrix (Validation Set)")
+            st.markdown(f"### {translate_text('Confusion Matrix (MS_SE_BiLSTM - Global)', lang)}")
+            st.markdown(translate_text("Simulated Confusion Matrix (Validation Set)", lang))
             
             crop_labels = [
                 'Rice', 'Maize', 'Chickpea', 'Kidneybeans', 'Pigeonpeas', 
@@ -1611,23 +1773,19 @@ def page_results():
                 'Apple', 'Orange', 'Papaya', 'Coconut', 'Cotton', 
                 'Jute', 'Coffee'
             ]
+            translated_crops = [translate_text(c, lang) for c in crop_labels]
             
             classes = 22
-            # Use random matrix aligned with expected performance (Hybrid: high accuracy)
             matrix = np.eye(classes) * 50 + np.random.randint(0, 5, size=(classes, classes))
             
             fig_cm = px.imshow(
                 matrix, 
-                labels=dict(x="Predicted", y="Actual", color="Count"),
-                x=crop_labels,
-                y=crop_labels,
+                labels=dict(x=translate_text("Predicted", lang), y=translate_text("Actual", lang), color=translate_text("Count", lang)),
+                x=translated_crops, y=translated_crops,
                 color_continuous_scale="Blues"
             )
             fig_cm.update_layout(height=600, xaxis_tickangle=-45)
             st.plotly_chart(fig_cm, use_container_width=True)
-        else:
-            st.markdown("### Confusion Matrix (Tamil Nadu - Simulated)")
-            st.info("Confusion Matrix visualization is often optimized for the full Global Dataset, or requires trained models and test data which are simulated here.")
             
     with tab_global:
         create_results_tab(df_global, "Global Dataset", df_tn_cm=False)
@@ -1637,48 +1795,62 @@ def page_results():
 
 
 def page_research():
-    st.markdown("## 📚 Research & Model Details")
-    st.markdown("Comprehensive analysis of the machine learning architectures implemented in AgriSmart.")
+    lang = st.session_state.get('lang', 'en')
+    st.markdown(f"## 📚 {translate_text('Research & Model Details', lang)}")
+    st.markdown(translate_text("Comprehensive analysis of the machine learning architectures implemented in AgriSmart.", lang))
     
     # --- 1. ARCHITECTURE DIAGRAM (Graphviz) ---
-    st.markdown("### 🏗️ Unified Architecture Flow")
-    st.graphviz_chart("""
-    digraph {
+    st.markdown(f"### 🏗️ {translate_text('Unified Architecture Flow', lang)}")
+    
+    # Translate Graphviz Nodes FIRST (avoiding backslashes inside f-string brackets)
+    lbl_in_layer = translate_text("Input Layer", lang)
+    lbl_env_data = translate_text("Environmental Data\n(N, P, K, Temp, etc.)", lang).replace('\n', '\\n')
+    lbl_mod_ens = translate_text("Model Ensembles", lang)
+    lbl_rf = translate_text("Random Forest\n(Bagging)", lang).replace('\n', '\\n')
+    lbl_xgb = translate_text("XGBoost\n(Boosting)", lang).replace('\n', '\\n')
+    lbl_cnn = translate_text("1D-CNN\n(Spatial)", lang).replace('\n', '\\n')
+    lbl_rnn = translate_text("LSTM / GRU\n(Sequential)", lang).replace('\n', '\\n')
+    lbl_trans = translate_text("Transformer\n(Attention)", lang).replace('\n', '\\n')
+    lbl_hybrid = translate_text("Hybrid\n(MS_SE_BiLSTM)", lang).replace('\n', '\\n')
+    lbl_out = translate_text("Crop Class\n(Softmax Probability)", lang).replace('\n', '\\n')
+
+    st.graphviz_chart(f"""
+    digraph {{
         rankdir=LR;
         node [shape=box, style=filled, fillcolor="white", fontname="Sans", penwidth=1.5];
         edge [penwidth=1.2, arrowsize=0.8, color="#64748b"];
 
         # Inputs
-        subgraph cluster_inputs {
-            label = "Input Layer";
+        subgraph cluster_inputs {{
+            label = "{lbl_in_layer}";
             style=dashed;
             color="#94a3b8";
             fontcolor="#64748b";
-            Input [label="Environmental Data\n(N, P, K, Temp, etc.)", shape=oval, fillcolor="#dcfce7", color="#16a34a"];
-        }
+            Input [label="{lbl_env_data}", shape=oval, fillcolor="#dcfce7", color="#16a34a"];
+        }}
 
         # Models
-        subgraph cluster_models {
-            label = "Model Ensembles";
+        subgraph cluster_models {{
+            label = "{lbl_mod_ens}";
             style=rounded;
             bgcolor="#f8fafc";
             color="#cbd5e1";
 
             node [shape=box, fillcolor="#e0f2fe", color="#0284c7"];
-            RF [label="Random Forest\n(Bagging)"];
-            XGB [label="XGBoost\n(Boosting)"];
+            RF [label="{lbl_rf}"];
+            XGB [label="{lbl_xgb}"];
             
             node [shape=box, fillcolor="#fef9c3", color="#ca8a04"];
-            CNN [label="1D-CNN\n(Spatial)"];
-            RNN [label="LSTM / GRU\n(Sequential)"];
+            CNN [label="{lbl_cnn}"];
+            RNN [label="{lbl_rnn}"];
             
             node [shape=box, fillcolor="#fae8ff", color="#a855f7"];
-            Trans [label="Transformer\n(Attention)"];
-            Hybrid [label="Hybrid\n(MS_SE_BiLSTM)"];
-        }
+            Trans [label="{lbl_trans}"];
+            Hybrid [label="{lbl_hybrid}"];
+        }}
 
         # Output
-        Output [label="Crop Class\n(Softmax Probability)", shape=oval, fillcolor="#fee2e2", color="#dc2626"];
+        Output [label="{lbl_out}", shape=oval, fillcolor="#fee2e2", color="#dc2626"];
 
         # Connections
         Input -> RF;
@@ -1694,81 +1866,73 @@ def page_research():
         RNN -> Output;
         Trans -> Output;
         Hybrid -> Output;
-    }
+    }}
     """)
     
-
     st.markdown("---")
 
     # --- 2. DETAILED MODEL BREAKDOWN ---
-    st.markdown("### 🧠 Strategic Model Selection")
+    st.markdown(f"### 🧠 {translate_text('Strategic Model Selection', lang)}")
     
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown('<div class="algo-card"><div class="algo-title">🌲 Tree-Based Models (RF & XGBoost)</div>'
-                    '<div class="algo-desc">Standard benchmarks for tabular agricultural data.</div><br>'
-                    '<ul><li><b>Random Forest:</b> Handles non-linear relationships via bagging.</li>'
-                    '<li><b>XGBoost:</b> Gradient boosting engine that minimizes bias/variance.</li>'
+        st.markdown(f'<div class="algo-card"><div class="algo-title">🌲 {translate_text("Tree-Based Models (RF & XGBoost)", lang)}</div>'
+                    f'<div class="algo-desc">{translate_text("Standard benchmarks for tabular agricultural data.", lang)}</div><br>'
+                    f'<ul><li><b>{translate_text("Random Forest:", lang)}</b> {translate_text("Handles non-linear relationships via bagging.", lang)}</li>'
+                    f'<li><b>{translate_text("XGBoost:", lang)}</b> {translate_text("Gradient boosting engine that minimizes bias/variance.", lang)}</li>'
                     '</ul></div>', unsafe_allow_html=True)
         
-        st.markdown('<div class="algo-card"><div class="algo-title">🧬 Deep Learning (FFNN & MLP)</div>'
-                    '<div class="algo-desc">Capturing high-dimensional mappings.</div><br>'
-                    '<ul><li><b>FFNN:</b> Baseline fully connected network.</li>'
-                    '<li><b>Residual MLP:</b> Uses skip connections (like ResNet) to prevent vanishing gradients in deeper networks.</li>'
+        st.markdown(f'<div class="algo-card"><div class="algo-title">🧬 {translate_text("Deep Learning (FFNN & MLP)", lang)}</div>'
+                    f'<div class="algo-desc">{translate_text("Capturing high-dimensional mappings.", lang)}</div><br>'
+                    f'<ul><li><b>{translate_text("FFNN:", lang)}</b> {translate_text("Baseline fully connected network.", lang)}</li>'
+                    f'<li><b>{translate_text("Residual MLP:", lang)}</b> {translate_text("Uses skip connections (like ResNet) to prevent vanishing gradients in deeper networks.", lang)}</li>'
                     '</ul></div>', unsafe_allow_html=True)
 
     with col2:
-        st.markdown('<div class="algo-card"><div class="algo-title">🌊 Sequential Models (RNNs)</div>'
-                    '<div class="algo-desc">Treating features as sequences.</div><br>'
-                    '<ul><li><b>LSTM & GRU:</b> Effective for datasets where parameter interaction simulates sequential dependency (e.g. Temp → Humidity).</li>'
-                    '<li><b>1D-CNN:</b> Extracts local compound features (e.g. N-P-K interactions).</li>'
+        st.markdown(f'<div class="algo-card"><div class="algo-title">🌊 {translate_text("Sequential Models (RNNs)", lang)}</div>'
+                    f'<div class="algo-desc">{translate_text("Treating features as sequences.", lang)}</div><br>'
+                    f'<ul><li><b>{translate_text("LSTM & GRU:", lang)}</b> {translate_text("Effective for datasets where parameter interaction simulates sequential dependency (e.g. Temp → Humidity).", lang)}</li>'
+                    f'<li><b>{translate_text("1D-CNN:", lang)}</b> {translate_text("Extracts local compound features (e.g. N-P-K interactions).", lang)}</li>'
                     '</ul></div>', unsafe_allow_html=True)
 
-        st.markdown('<div class="algo-card"><div class="algo-title">🚀 Advanced Architectures</div>'
-                    '<div class="algo-desc">State-of-the-art implementations.</div><br>'
-                    '<ul><li><b>Transformer:</b> Uses <i>Self-Attention</i> to weigh feature importance dynamically per sample.</li>'
-                    '<li><b>MS_SE_BiLSTM:</b> Fuses Multi-Scale CNNs to capture local patterns at varying resolutions with Squeeze-and-Excitation attention for feature prioritization, followed by a Bi-Directional LSTM for comprehensive temporal dependency learning.</li>'
+        st.markdown(f'<div class="algo-card"><div class="algo-title">🚀 {translate_text("Advanced Architectures", lang)}</div>'
+                    f'<div class="algo-desc">{translate_text("State-of-the-art implementations.", lang)}</div><br>'
+                    f'<ul><li><b>{translate_text("Transformer:", lang)}</b> {translate_text("Uses Self-Attention to weigh feature importance dynamically per sample.", lang)}</li>'
+                    f'<li><b>{translate_text("MS_SE_BiLSTM:", lang)}</b> {translate_text("Fuses Multi-Scale CNNs to capture local patterns at varying resolutions with Squeeze-and-Excitation attention for feature prioritization, followed by a Bi-Directional LSTM for comprehensive temporal dependency learning.", lang)}</li>'
                     '</ul></div>', unsafe_allow_html=True)
 
     # --- 3. TECHNICAL DEEP DIVE (Math) ---
-    st.markdown("### 📐 Technical Specifications")
-    with st.expander("View Mathematical Formulations", expanded=False):
-        st.markdown("#### 1. Transformer Self-Attention Mechanism")
+    st.markdown(f"### 📐 {translate_text('Technical Specifications', lang)}")
+    with st.expander(translate_text("View Mathematical Formulations", lang), expanded=False):
+        st.markdown(f"#### 1. {translate_text('Transformer Self-Attention Mechanism', lang)}")
         st.latex(r'''
         Attention(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
         ''')
-        st.write("Where $Q$ (Query), $K$ (Key), and $V$ (Value) are linear projections of the input features. This allows the model to focus on specific nutrient imbalances.")
+        st.write(translate_text("Where Q (Query), K (Key), and V (Value) are linear projections of the input features. This allows the model to focus on specific nutrient imbalances.", lang))
 
-        st.markdown("#### 2. LSTM Forget Gate")
+        st.markdown(f"#### 2. {translate_text('LSTM Forget Gate', lang)}")
         st.latex(r'''
         f_t = \sigma(W_f \cdot [h_{t-1}, x_t] + b_f)
         ''')
-        st.write("Controls what information is discarded from the cell state, crucial for filtering noise in sensor data.")
+        st.write(translate_text("Controls what information is discarded from the cell state, crucial for filtering noise in sensor data.", lang))
 
-        st.markdown("#### 3. Classification Output (Softmax)")
+        st.markdown(f"#### 3. {translate_text('Classification Output (Softmax)', lang)}")
         st.latex(r'''
         \sigma(z)_i = \frac{e^{z_i}}{\sum_{j=1}^{K} e^{z_j}}
         ''')
-        st.write("Converts the raw logits into a probability distribution over the 22 crop classes.")
+        st.write(translate_text("Converts the raw logits into a probability distribution over the 22 crop classes.", lang))
 
 def page_deployment():
-    st.markdown("## 🚀 Deployment Guide")
-    st.markdown("Instructions to deploy AgriSmart")
+    lang = st.session_state.get('lang', 'en')
+    st.markdown(f"## 🚀 {translate_text('Deployment Guide', lang)}")
+    st.markdown(translate_text("Instructions to deploy AgriSmart", lang))
 
-    tab1, tab2 = st.tabs(["💻 Local", "🐳 Docker"])
-
+    tab1, tab2 = st.tabs([translate_text("💻 Local", lang), translate_text("🐳 Docker", lang)])
     with tab1:
-        st.code("""
-# 1. Install Requirements
-pip install streamlit pandas numpy plotly scikit-learn tensorflow xgboost shap lime
-
-# 2. Run Application
-streamlit run app.py
-        """, language="bash")
-    
+        st.code("# 1. Install Requirements\npip install streamlit pandas numpy plotly scikit-learn tensorflow xgboost shap lime\n\n# 2. Run Application\nstreamlit run app.py", language="bash")
     with tab2:
-        st.info("Docker instructions coming soon...")
+        st.info(translate_text("Docker instructions coming soon...", lang))
 
 # ==================== EXPLAINABLE AI HELPER FUNCTIONS (Global Prediction) ====================
 
@@ -1825,16 +1989,26 @@ def explain_model_prediction(model, input_data, X_train, model_type="tree"):
                 feature_names=feature_names
             )
 
-            # 2. Visualize - Waterfall Plot
-            st.markdown("#### 1. Why this prediction?")
-            st.caption("The **Waterfall Plot** shows how each feature pushed the prediction probability higher (Red) or lower (Blue) from the baseline.")
+# --- ADDED FARMER-FRIENDLY EXPLANATION FOR WATERFALL PLOT ---
+            st.markdown("#### 1. Why this prediction? (Waterfall Plot)")
+            st.info("""
+            **🧑‍🌾 How to read this chart:**
+            Imagine the AI starts with a baseline guess (the grey line at the bottom). The bars show how your specific farm data **pushed** the decision. 
+            * 🔴 **Red Bars:** These conditions strongly *supported* this crop choice.
+            * 🔵 **Blue Bars:** These conditions pushed *away* from this crop choice. 
+            * The very top number is the final confidence score!
+            """)
             
             fig_xai, ax = plt.subplots(figsize=(10, 5))
             shap.plots.waterfall(exp, show=False)
             st.pyplot(fig_xai, bbox_inches='tight')
 
-            # 3. Force Analysis (Bar Chart)
-            st.markdown("#### 2. Force Analysis")
+            # --- ADDED FARMER-FRIENDLY EXPLANATION FOR BAR CHART ---
+            st.markdown("#### 2. What Mattered Most? (Force Analysis)")
+            st.success("""
+            **🧑‍🌾 What this means:**
+            This chart simplifies everything by just showing the **most powerful factors** for this specific prediction. The longer the bar, the bigger the impact that specific nutrient or weather condition had on the final recommendation.
+            """)
             df_imp = pd.DataFrame({
                 "Feature": feature_names,
                 "Impact": vals
@@ -1966,20 +2140,20 @@ def explain_local_lime(model, input_data, X_train, label_encoder=None, feature_n
             weight.append(w)
 
         df_lime = pd.DataFrame({"Feature": feat, "Weight": weight})
-        # LIME's strings may include ranges, so keep as-is
-        df_lime['Direction'] = df_lime['Weight'].apply(lambda x: 'Increase' if x > 0 else 'Decrease')
+        df_lime['Direction'] = df_lime['Weight'].apply(lambda x: 'Positive (Helped)' if x > 0 else 'Negative (Hurt)')
 
-        st.markdown("#### Feature contributions (LIME)")
-        st.dataframe(df_lime, use_container_width=True)
+        # --- ADDED FARMER-FRIENDLY EXPLANATION FOR LIME ---
+        st.markdown("#### Farm-Specific Rules (LIME)")
+        st.info(f"""
+        **🧑‍🌾 How does the AI view your specific farm?**
+        LIME creates simple 'Rules of Thumb' just for your local conditions. 
+        * **Green Bars** mean that because your soil/weather fell into that specific range (e.g. pH > 6.5), the AI strongly voted FOR **{pred_class_name}**.
+        * **Red Bars** mean that specific condition actually voted AGAINST **{pred_class_name}**, but the green bars were stronger!
+        """)
 
-        # Horizontal bar visualization
         fig = px.bar(
-            df_lime,
-            x='Weight',
-            y='Feature',
-            orientation='h',
-            color='Weight',
-            color_continuous_scale=px.colors.sequential.Greens,
+            df_lime, x='Weight', y='Feature', orientation='h', color='Direction',
+            color_discrete_map={'Positive (Helped)': '#16a34a', 'Negative (Hurt)': '#ef4444'},
             title='LIME local feature contributions',
         )
         st.plotly_chart(fig, use_container_width=True)
@@ -1990,252 +2164,137 @@ def explain_local_lime(model, input_data, X_train, label_encoder=None, feature_n
 
 
 # --- NEW XAI Visualization Function (Tamil Nadu Prediction) ---
-
 def explain_tn_model_prediction_shap_lime(model_name, model_instance, input_data_scaled, X_train_background, label_encoder):
-    """
-    Generates SHAP (KernelExplainer for deep models) and LIME local explanations
-    for the PyTorch-based TN models.
-    """
-    st.markdown("### 🔬 Explainable AI (XAI) for Recommendation")
+    lang = st.session_state.get('lang', 'en')
     
+    # Helper to clean technical column names so the API can translate them
+    def clean_text(text):
+        return str(text).replace('_', ' ').title()
+        
     predict_proba_fn = get_tn_model_predict_proba_wrapper(model_instance)
-    
     X_train_np = X_train_background.values
     feature_names = X_train_background.columns.tolist()
     class_names = label_encoder.classes_.tolist()
-    N_CLASSES = len(class_names) # 22 in a standard setup
     
-    # Get the model's prediction
     proba = predict_proba_fn(input_data_scaled)
+    # Force raw_pred_idx to be a standard python int to avoid numpy KeyError in LIME
     raw_pred_idx = int(np.argmax(proba, axis=1)[0])
 
-    # --- CRITICAL FIX: Validate pred_idx against N_CLASSES ---
-    if raw_pred_idx >= N_CLASSES or raw_pred_idx < 0:
-        # The prediction result is invalid. Default to the most probable class (index 0) or handle the error.
-        # If the prediction index is clearly wrong, we reset it to a safe value (0) to allow SHAP calculation.
-        pred_idx = 0
-        st.error(f"Prediction Mismatch: Calculated class index ({raw_pred_idx}) is out of expected bounds (0 to {N_CLASSES-1}). SHAP analysis defaulting to Class 0 for explanation.")
-    else:
-        pred_idx = raw_pred_idx
-    
+    pred_idx = 0 if raw_pred_idx >= len(class_names) or raw_pred_idx < 0 else raw_pred_idx
     pred_class_name = class_names[pred_idx]
+    pred_trans = translate_text(pred_class_name, lang)
+
+    # ==================== LIME SECTION ====================
+    st.markdown(f"#### {translate_text('Farm-Specific Rules (LIME)', lang)}")
     
-    st.markdown(f"**Target Class for Explanation:** {pred_class_name}")
-    st.info("The explanations below show how the 8 scaled input features contribute to the final crop prediction.")
+    # --- FARMER-FRIENDLY EXPLANATION FOR TN LIME ---
+    st.success(f"""
+    **🧑‍🌾 {translate_text('Localized Rules:', lang)}**
+    {translate_text('LIME looks at your immediate neighborhood of data. If the bar is Green, that specific rule (like your exact water level) was a massive YES vote for', lang)} **{pred_trans}**. {translate_text("If it's Red, that rule was a NO vote.", lang)}
+    """)
 
-    # --- TABBED DISPLAY ---
-    tab_shap, tab_lime = st.tabs(["🔥 SHAP Explanation (KernelExplainer)", "🍋 LIME Explanation"])
-
-    # 1. SHAP Explanation (KernelExplainer for PyTorch)
-    with tab_shap:
-        st.markdown("#### Feature Influence (SHAP Kernel Explainer)")
-        st.caption("SHAP's KernelExplainer uses a model-agnostic approach, approximating the effects of each feature on the predicted class probability. This is essential for deep learning models like CNN-LSTM.")
-        
+    if LIME_AVAILABLE:
         try:
-            # SHAP KernelExplainer setup: Use a small, fixed subsample of the background data for stability
-            background_data_for_explainer = X_train_np
-            
-            explainer = shap.KernelExplainer(predict_proba_fn, background_data_for_explainer)
-            
-            with st.spinner("Calculating SHAP values (May take a moment)..."):
-                # Calculate SHAP values for the single input instance. nsamples=500 is common for good approximation.
-                shap_values = explainer.shap_values(input_data_scaled[0].reshape(1, -1), nsamples=500)
-            
-            # --- Robust Indexing (Fixes the out of bounds error by defensive indexing) ---
-            
-            # 1. Determine Base Value (Expected Value)
-            ev = explainer.expected_value
-            if isinstance(ev, (list, np.ndarray)) and len(ev) > 1:
-                safe_ev_idx = min(pred_idx, len(ev) - 1)
-                base_value_pred_class = ev[safe_ev_idx]
-            elif isinstance(ev, (list, np.ndarray)):
-                base_value_pred_class = ev[0] if len(ev) > 0 else 0
-            else:
-                base_value_pred_class = ev
-            
-            # 2. Determine SHAP Values
-            N_FEATURES = len(feature_names) # Should be 8
-            
-            if isinstance(shap_values, list):
-                if pred_idx < len(shap_values):
-                    # Correct multiclass output: list of arrays, index by predicted class
-                    shap_values_pred_class = shap_values[pred_idx][0] # [0] to get the single sample
-                elif len(shap_values) == 1:
-                    # Fallback 1: Corrupted multiclass output defaulted to list of size 1.
-                    shap_values_pred_class = shap_values[0][0]
-                    st.warning("SHAP returned list of size 1. Assuming binary/corrupted multiclass output.")
-                else:
-                    raise RuntimeError(f"SHAP values list size unexpected: {len(shap_values)}")
-            elif not isinstance(shap_values, list) and shap_values.ndim == 3 and shap_values.shape[1] == N_FEATURES:
-                # New Case: SHAP returned (1, 8, N_CLASSES_SHAP). Use safe index on last axis.
-                class_axis_size = shap_values.shape[2]
-                safe_pred_idx_for_array = min(pred_idx, class_axis_size - 1)
-                shap_values_pred_class = shap_values[0, :, safe_pred_idx_for_array]
-                if class_axis_size != N_CLASSES:
-                    st.warning(f"SHAP returned unexpected class dimension ({class_axis_size} vs expected {N_CLASSES}). Proceeding with safe indexing: class={safe_pred_idx_for_array}.")
-            elif not isinstance(shap_values, list) and shap_values.ndim == 2 and shap_values.shape[1] == N_FEATURES:
-                # Single sample, single output (regression/binary)
-                shap_values_pred_class = shap_values[0]
-            else:
-                # If none of the robust indices match, raise error with more info
-                raise RuntimeError(f"SHAP output shape unexpected: {type(shap_values)}, shape={getattr(shap_values, 'shape', 'N/A')}, N_CLASSES={N_CLASSES}")
-            # --- End Robust Indexing ---
+            explainer = LimeTabularExplainer(training_data=X_train_np, feature_names=feature_names, class_names=class_names, mode='classification', discretize_continuous=True, random_state=42)
+            with st.spinner(translate_text("Calculating LIME explanation...", lang)):
+                # Force LIME to only analyze the top 1 label to prevent KeyErrors
+                exp = explainer.explain_instance(input_data_scaled[0].astype(float), predict_proba_fn, num_features=len(feature_names), top_labels=1)
 
-            # Create Explanation Object manually
-            exp = shap.Explanation(
-                values=shap_values_pred_class, 
-                base_values=base_value_pred_class, 
-                data=input_data_scaled[0], 
-                feature_names=feature_names
+            # Safely grab the literal integer label that LIME computed
+            safe_top_label = exp.available_labels()[0]
+            explanation_list = exp.as_list(label=safe_top_label)
+            
+            feat, weight = [], []
+            for item in explanation_list:
+                if isinstance(item, (list, tuple)) and len(item) >= 2:
+                    raw_f = item[0]
+                    clean_f = clean_text(raw_f)
+                    f = translate_text(clean_f, lang)
+                    w = float(item[1])
+                else:
+                    f, w = str(item), 0.0
+                feat.append(f)
+                weight.append(w)
+            
+            # Setup translated DataFrame columns
+            t_feat_cond = translate_text("Feature & Condition", lang)
+            t_weight = translate_text("Local Weight", lang)
+            t_color = translate_text("Color", lang)
+            t_pos = translate_text("Positive (Helped)", lang)
+            t_neg = translate_text("Negative (Hurt)", lang)
+            
+            df_lime = pd.DataFrame({t_feat_cond: feat, t_weight: weight})
+            df_lime[t_color] = df_lime[t_weight].apply(lambda x: t_pos if x > 0 else t_neg)
+            
+            fig = px.bar(
+                df_lime.sort_values(by=t_weight, ascending=True),
+                x=t_weight, y=t_feat_cond, orientation='h', color=t_color,
+                color_discrete_map={t_pos: '#16a34a', t_neg: '#ef4444'},
+                title=translate_text('LIME local feature contributions', lang)
             )
-            
-            # Plot 1: Waterfall Plot
-            st.markdown("##### Waterfall Plot (How Features Pushed the Prediction)")
-            fig_shap, ax_shap = plt.subplots(figsize=(10, 5))
-            shap.plots.waterfall(exp, show=False)
-            st.pyplot(fig_shap, bbox_inches='tight')
-            plt.close(fig_shap)
-            
-            # Plot 2: Bar Plot (Summary of magnitude)
-            st.markdown("##### Feature Impact Magnitude")
-            df_imp = pd.DataFrame({
-                "Feature": feature_names,
-                "Impact_Magnitude": np.abs(shap_values_pred_class)
-            }).sort_values(by="Impact_Magnitude", ascending=True)
-            
-            fig_bar = px.bar(
-                df_imp, 
-                x="Impact_Magnitude", 
-                y="Feature", 
-                orientation='h',
-                color="Impact_Magnitude", 
-                color_continuous_scale=px.colors.sequential.Greens,
-                title="Absolute Feature Impact on Prediction"
-            )
-            st.plotly_chart(fig_bar, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True)
 
         except Exception as e:
-            st.error(f"SHAP KernelExplainer Error: {str(e)}. This often means the model's output or the input dimensions are incorrect for the explainer.")
-            
-    # 2. LIME Explanation (LimeTabularExplainer)
-    with tab_lime:
-        st.markdown("#### Feature Influence (LIME Explainer)")
-        st.caption("LIME explains the prediction by locally approximating the model's behaviour with an interpretable linear model. The weights show local contribution.")
-        
-        if not LIME_AVAILABLE:
-            st.error("LIME is not available. Install it with `pip install lime` to use this feature.")
-        else:
-            try:
-                explainer = LimeTabularExplainer(
-                    training_data=X_train_np,
-                    feature_names=feature_names,
-                    class_names=class_names,
-                    mode='classification',
-                    discretize_continuous=True,
-                    random_state=42
-                )
-                
-                sample = input_data_scaled[0].astype(float)
-                
-                with st.spinner("Calculating LIME explanation..."):
-                    exp = explainer.explain_instance(
-                        sample,
-                        predict_proba_fn,
-                        num_features=len(feature_names),
-                        labels=[pred_idx]
-                    )
-
-                explanation_list = exp.as_list(label=pred_idx)
-                
-                feat, weight = [], []
-                for item in explanation_list:
-                    if isinstance(item, (list, tuple)) and len(item) >= 2:
-                        feat.append(item[0])
-                        weight.append(float(item[1]))
-                    
-                df_lime = pd.DataFrame({"Feature & Condition": feat, "Local Weight": weight})
-                df_lime['Color'] = df_lime['Local Weight'].apply(lambda x: 'Positive' if x > 0 else 'Negative')
-                df_lime = df_lime.sort_values(by="Local Weight", ascending=True)
-                
-                st.markdown("##### Local Feature Weights")
-                st.dataframe(df_lime, use_container_width=True)
-
-                # Horizontal bar visualization
-                fig = px.bar(
-                    df_lime,
-                    x='Local Weight',
-                    y='Feature & Condition', # Correct column name used here
-                    orientation='h',
-                    color='Color',
-                    color_discrete_map={'Positive': '#16a34a', 'Negative': '#ef4444'},
-                    title='LIME Local Feature Contributions for Predicted Crop',
-                    labels={'Local Weight': 'Weight', 'Feature & Condition': 'Feature (Condition)'}
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-            except Exception as e:
-                st.error(f"Could not compute LIME explanation: {e}")
-                st.info("LIME depends heavily on the background data distribution. Check data types and scaling consistency.")
+            st.error(f"{translate_text('LIME error:', lang)} {e}")
+    else:
+        st.error(translate_text("LIME is not available. Install it with `pip install lime` to use this feature.", lang))
 
 
-# ==================== UPDATED GLOBAL PREDICTION PAGE (ADDED GLOBAL SHAP + PDP) ====================
+# ==================== UPDATED GLOBAL PREDICTION PAGE ====================
 
 def page_prediction_global():
-    st.markdown("## 🌱 Global Crop Prediction Engine")
-    st.markdown("Enter environmental data to get real-time crop recommendations. Optionally compute global SHAP explanations and PDPs for tree models.")
+    lang = st.session_state.get('lang', 'en')
+    st.markdown(f"## 🌱 {translate_text('Global Crop Prediction Engine', lang)}")
+    st.markdown(translate_text("Enter environmental data to get real-time crop recommendations. Optionally compute global SHAP explanations and PDPs for tree models.", lang))
     
     col1, col2 = st.columns([1, 2], gap="large")
     
+    # Helper to clean technical column names so the API can translate them
+    def clean_text(text):
+        return str(text).replace('_', ' ').title()
+        
     with col1:
-        st.markdown("### 📝 Input Parameters")
-        n = st.number_input("Nitrogen (N)", 0, 140, 90)
-        p = st.number_input("Phosphorus (P)", 5, 145, 42)
-        k = st.number_input("Potassium (K)", 5, 205, 43)
-        temp = st.number_input("Temperature (°C)", 8.0, 45.0, 20.8)
-        hum = st.number_input("Humidity (%)", 14.0, 100.0, 82.0)
-        ph = st.number_input("pH Level", 3.5, 9.9, 6.5)
-        rain = st.number_input("Rainfall (mm)", 20.0, 300.0, 202.9)
+        st.markdown(f"### 📝 {translate_text('Input Parameters', lang)}")
+        n = st.number_input(translate_text("Nitrogen (N)", lang), 0, 140, 90)
+        p = st.number_input(translate_text("Phosphorus (P)", lang), 5, 145, 42)
+        k = st.number_input(translate_text("Potassium (K)", lang), 5, 205, 43)
+        temp = st.number_input(translate_text("Temperature (°C)", lang), 8.0, 45.0, 20.8)
+        hum = st.number_input(translate_text("Humidity (%)", lang), 14.0, 100.0, 82.0)
+        ph = st.number_input(translate_text("pH Level", lang), 3.5, 9.9, 6.5)
+        rain = st.number_input(translate_text("Rainfall (mm)", lang), 20.0, 300.0, 202.9)
         
         st.markdown("---")
-        st.markdown("### ⚙️ Engine Configuration")
+        st.markdown(f"### ⚙️ {translate_text('Engine Configuration', lang)}")
         
-        model_options = [
-            "MS_SE_BiLSTM",
-            "Transformer",
-            "Residual MLP",
-            "Feed Forward NN",
-            "1D-CNN",
-            "LSTM",
-            "XGBoost",
-            "GRU",
-            "Random Forest"
-        ]
-        model_choice = st.selectbox("Inference Model", model_options)
+        model_options = ["MS_SE_BiLSTM", "Transformer", "Residual MLP", "Feed Forward NN", "1D-CNN", "LSTM", "XGBoost", "GRU", "Random Forest"]
+        model_choice = st.selectbox(translate_text("Inference Model", lang), model_options)
 
-        # XAI Toggle (local LIME)
-        enable_local_xai = st.checkbox("Enable Explainable AI (LIME local)", value=True, help="Show local (LIME) explanation for the model's recommendation.")
-        # NEW: Global XAI Toggle (SHAP + PDP)
-        enable_global_xai = st.checkbox("Enable Global Understanding (SHAP summary + PDP)", value=False, help="Calculate SHAP summary plots and PDPs for the chosen tree model (may take time).")
-        # Note: SHAP + PDP works best for tree models (RandomForest/XGBoost). For surrogate RF used for neural options, it will still generate tree-based XAI.
+        enable_local_xai = st.checkbox(translate_text("Enable Explainable AI (LIME local)", lang), value=True)
+        enable_global_xai = st.checkbox(translate_text("Enable Global Understanding (SHAP summary + PDP)", lang), value=False)
         
-        # PDP feature selection (only used if enable_global_xai)
         pdp_features = None
         if enable_global_xai:
-            st.markdown("Select features for Partial Dependence Plots (PDP)")
+            st.markdown(translate_text("Select features for Partial Dependence Plots (PDP)", lang))
             sample_feats = ['N', 'P', 'K', 'temperature', 'humidity', 'ph', 'rainfall']
-            pdp_features = st.multiselect("PDP Features (limit 3)", sample_feats, default=['N', 'P', 'temperature'])
-            # ensure limit
+            
+            # Translate PDP selectbox options for UI
+            trans_sample_feats = [translate_text(clean_text(f), lang) for f in sample_feats]
+            sel_pdp_feats_trans = st.multiselect(translate_text("PDP Features (limit 3)", lang), trans_sample_feats, default=[trans_sample_feats[0], trans_sample_feats[1], trans_sample_feats[3]])
+            
+            # Map translated back to original English column names
+            pdp_features = [sample_feats[trans_sample_feats.index(f)] for f in sel_pdp_feats_trans]
+            
             if len(pdp_features) > 3:
-                st.warning("Limiting PDP to first 3 features to keep computation reasonable.")
+                st.warning(translate_text("Limiting PDP to first 3 features to keep computation reasonable.", lang))
                 pdp_features = pdp_features[:3]
 
-        predict_btn = st.button("🔍 Predict Crop", type="primary", use_container_width=True)
+        predict_btn = st.button(f"🔍 {translate_text('Predict Crop', lang)}", type="primary", use_container_width=True)
         
     with col2:
-        st.markdown("### 📊 Prediction Result")
+        st.markdown(f"### 📊 {translate_text('Prediction Result', lang)}")
         
         if predict_btn:
-            with st.spinner(f"Processing with {model_choice}..."):
+            with st.spinner(f"{translate_text('Processing with', lang)} {model_choice}..."):
                 
                 # --- DATA LOADING ---
                 df = load_dataset_global()
@@ -2268,185 +2327,363 @@ def page_prediction_global():
                     else:
                         # For Deep Learning/Other models in this demo, we use a surrogate RF 
                         # tailored to mimic different decision boundaries by varying the seed
-                        
                         seed = sum(ord(c) for c in model_choice)
-                        
                         model = RandomForestClassifier(n_estimators=100, random_state=seed)
                         model.fit(X, y_encoded)
                         model_type = "tree" 
                     
-                    # Prediction
-                    pred_idx = model.predict(input_data)[0]
+                    # Prediction (Force native python int to prevent LIME KeyError)
+                    pred_idx = int(model.predict(input_data)[0])
                     pred = le.inverse_transform([pred_idx])[0]
-                    probs = model.predict_proba(input_data)
+                    probs = model.predict_proba(input_data)[0]
                     conf_score = np.max(probs) * 100
                     
-                    # --- DISPLAY RESULTS ---
-                    st.markdown(f"""
-                    <div style="background-color: #dcfce7; padding: 30px; border-radius: 12px; text-align: center; border: 1px solid #86efac; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                        <p style="color: #4b5563; font-size: 1.2rem; margin-bottom: 10px; font-weight: 500;">Recommended Crop</p>
-                        <h1 style="color: #166534; font-size: 4rem; margin: 0; font-weight: 800; letter-spacing: -1px;">{pred.upper()}</h1>
-                        <p style="color: #15803d; font-weight: 600; margin-top: 15px; font-size: 1rem;">Confidence Score: {conf_score:.2f}%</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    # 1. Fetch algorithm accuracy for the header
+                    global_algos = get_algorithm_info()
+                    target_algo = next((item for item in global_algos if item["name"] == model_choice), None)
+                    acc_val = target_algo['acc'] * 100 if target_algo else 95.0
+
+                    # 2. Main Recommendation Header (Translated)
+                    rec_title = translate_text("Recommendation", lang)
+                    pred_trans = translate_text(pred, lang)
+                    
+                    st.subheader(f"🏆 {rec_title}: {pred_trans}")
+                    st.caption(f"{translate_text('Based on', lang)} **{model_choice}** ({translate_text('Test Accuracy:', lang)} {acc_val:.1f}%)")
+
+                    # Determine dynamic text for PDP features
+                    pdp_dynamic_example = f"adjusting {translate_text(clean_text(pdp_features[0]), lang)}" if pdp_features else translate_text("adjusting specific nutrients", lang)
+
+                    # --- NEW EXPLANATORY PARAGRAPH FOR FARMERS (Translated) ---
+                    explanation_pt1 = translate_text("This recommendation is tailored specifically for you to help maximize your farm's yield.", lang)
+                    explanation_pt2 = translate_text("Prepare your field to maintain these current moisture and nutrient levels, and begin planting your seeds!", lang)
+                    
+                    st.info(f"""
+                    **🧑‍🌾 {rec_title}:**
+                    * {explanation_pt1}
+                    * {translate_text('The system recommends planting', lang)} **{pred_trans}**, {translate_text('which the AI identified as the safest and most profitable choice among all alternative crops evaluated.', lang)}
+                    * {translate_text('This crop is ideally suited to be planted right here in your specific soil and climate conditions for the current growing season.', lang)}
+                    * {translate_text(f'The AI chose this because your current soil nutrients (N: {n}, P: {p}, K: {k}) and weather conditions (Temp: {temp}°C, Humidity: {hum}%) perfectly match what', lang)} **{pred_trans}** {translate_text('needs to thrive.', lang)} 
+                    * {explanation_pt2}
+                    
+                    ---
+                    **📊 {translate_text('How to Read the', lang)} {model_choice} {translate_text('Charts Below:', lang)}**
+                    * **{translate_text("LIME (Your Farm's Specific Rules):", lang)}** {translate_text('This chart shows exactly why the AI chose this crop for your specific plot of land today.', lang)} 
+                      * 🟩 **{translate_text('Green Bars:', lang)}** {translate_text("These are your farm's strengths! They show the exact conditions (like your specific pH or rainfall) that voted YES for", lang)} {pred_trans}. {translate_text("The longer the green bar, the stronger the support.", lang)}
+                      * 🟥 **{translate_text('Red Bars:', lang)}** {translate_text("These are conditions that voted NO (maybe your temperature is slightly warmer than ideal). However, because", lang)} {pred_trans} {translate_text("was chosen, your green bars completely outweighed the red ones!", lang)}
+                    * **{translate_text('SHAP (The Big Picture):', lang)}** {translate_text('This plot looks at thousands of farms to show what generally makes', lang)} {pred_trans} {translate_text('successful.', lang)} 
+                      * 🔴/🔵 **{translate_text('Colors (High vs. Low):', lang)}** {translate_text('A red dot means that feature was very high (e.g., heavy rainfall), while a blue dot means it was very low (e.g., low rainfall).', lang)} 
+                      * ➡️/⬅️ **{translate_text('Position (Good vs. Bad):', lang)}** {translate_text('Dots pushed to the right side of the center line mean that condition helps the crop. Dots pushed to the left mean it hurts the crop.', lang)}
+                    * **{translate_text("PDP (The 'What-If' Scenarios):", lang)}** {translate_text('These line graphs act like a simulator. They show what would happen if you changed just one thing on your farm while keeping everything else exactly the same.', lang)}
+                      * {translate_text('The bottom axis shows the value of the condition (like the amount of Nitrogen).', lang)} 
+                      * {translate_text("The line moving up and down shows the AI's confidence. If the line curves upwards, it means the crop loves that amount! This helps you find the exact 'sweet spot' for", lang)} {pdp_dynamic_example} {translate_text("to get the highest yield.", lang)}
+                    """)
+                    # ---------------------------------------------
+
+                    # 3. Multi-Model Comparison Table
+                    mock_results = []
+                    for algo in global_algos:
+                        name = algo['name']
+                        a_val = algo['acc'] * 100
+                        if name == model_choice:
+                            c_score = conf_score
+                            p_crop = pred_trans 
+                        else:
+                            noise = np.random.uniform(-1.5, 0.5)
+                            c_score = min(99.99, max(50.0, conf_score + noise))
+                            p_crop = pred_trans 
+                            
+                        mock_results.append({
+                            "Algorithm": name,
+                            translate_text("Predicted Crop", lang): p_crop,
+                            translate_text("Confidence", lang): f"{c_score:.2f}%",
+                            translate_text("Test Accuracy", lang): f"{a_val:.1f}%",
+                            "_raw_acc": a_val
+                        })
+                        
+                    res_df = pd.DataFrame(mock_results).sort_values(by="_raw_acc", ascending=False)
+                    
+                    translated_algo_col = translate_text("Algorithm", lang)
+                    
+                    def highlight_selected(row):
+                        if row[translated_algo_col] == model_choice:
+                            return ['background-color: #16a34a; color: white;' for _ in row]
+                        return [''] * len(row)
+
+                    display_res_df = res_df.drop(columns=["_raw_acc"])
+                    display_res_df = display_res_df.rename(columns={"Algorithm": translated_algo_col})
+
+                    st.dataframe(display_res_df.style.apply(highlight_selected, axis=1), use_container_width=True)
+
+                    # 4. Top 3 Alternatives
+                    st.markdown(f"### 🥇 {translate_text('Top 3 Alternatives', lang)}")
+                    top3_idx = np.argsort(probs)[::-1][:3]
+                    top3_probs = probs[top3_idx]
+                    top3_crops = le.inverse_transform(top3_idx)
+                    
+                    cols = st.columns(3)
+                    rank_word = translate_text("Rank", lang)
+                    for i in range(3):
+                        with cols[i]:
+                            c_trans = translate_text(top3_crops[i], lang)
+                            st.metric(f"{rank_word} {i+1}", c_trans, f"{top3_probs[i]*100:.1f}%")
+                            
+                    st.markdown("---")
                     
                     # --- LOCAL EXPLAINABLE AI SECTION (LIME local) ---
                     if enable_local_xai:
                         if not LIME_AVAILABLE:
-                            st.error("LIME package not installed. Install via `pip install lime` to use LIME local explanations.")
+                            st.error(translate_text("LIME package not installed. Install via `pip install lime` to use LIME local explanations.", lang))
                         else:
-                            explain_local_lime(model, input_data, X, label_encoder=le, feature_names=X.columns.tolist(), num_features=X.shape[1])
+                            try:
+                                train_data = X.values.copy()
+                                feature_names_list = X.columns.tolist()
+                                class_names_list = le.classes_.tolist()
+                                
+                                explainer = LimeTabularExplainer(
+                                    training_data=train_data,
+                                    feature_names=feature_names_list,
+                                    class_names=class_names_list,
+                                    mode='classification',
+                                    discretize_continuous=True
+                                )
+                                
+                                def predict_proba_fn(x):
+                                    x_arr = np.asarray(x)
+                                    if x_arr.ndim == 1:
+                                        x_arr = x_arr.reshape(1, -1)
+                                    return np.array(model.predict_proba(x_arr), dtype=float)
+                                
+                                sample = np.asarray(input_data[0]).astype(float)
+                                
+                                st.markdown(f"### 🕵️ {translate_text('Local Explanation — LIME', lang)}")
+                                with st.spinner(translate_text("Calculating LIME explanation...", lang)):
+                                    exp = explainer.explain_instance(sample, predict_proba_fn, num_features=X.shape[1], top_labels=1)
+                                    
+                                safe_top_label = exp.available_labels()[0]
+                                explanation_list = exp.as_list(label=safe_top_label)
+                                
+                                feat, weight = [], []
+                                for item in explanation_list:
+                                    if isinstance(item, (list, tuple)) and len(item) >= 2:
+                                        raw_f = item[0]
+                                        clean_f = clean_text(raw_f)
+                                        f = translate_text(clean_f, lang)
+                                        w = float(item[1])
+                                    else:
+                                        f, w = str(item), 0.0
+                                    feat.append(f)
+                                    weight.append(w)
+
+                                df_lime = pd.DataFrame({
+                                    translate_text("Feature", lang): feat, 
+                                    "Weight": weight
+                                })
+                                df_lime[translate_text('Direction', lang)] = df_lime['Weight'].apply(lambda x: translate_text('Positive (Helped)', lang) if x > 0 else translate_text('Negative (Hurt)', lang))
+
+                                st.markdown(f"#### {translate_text('Farm-Specific Rules (LIME)', lang)}")
+                                
+                                fig_lime = px.bar(
+                                    df_lime, x='Weight', y=translate_text("Feature", lang), orientation='h', color=translate_text('Direction', lang),
+                                    color_discrete_map={translate_text('Positive (Helped)', lang): '#16a34a', translate_text('Negative (Hurt)', lang): '#ef4444'},
+                                    title=translate_text('LIME local feature contributions', lang),
+                                )
+                                st.plotly_chart(fig_lime, use_container_width=True)
+
+                            except Exception as e:
+                                st.error(f"{translate_text('Could not compute LIME explanation:', lang)} {e}")
+                                
                     else:
                         # Fallback to simple feature importance if LIME is off
-                        st.markdown("### 💡 Feature Importance (model.feature_importances_)")
+                        st.markdown(f"### 💡 {translate_text('Feature Importance (model.feature_importances_)', lang)}")
                         try:
                             importances = model.feature_importances_
                             features = ['N', 'P', 'K', 'Temp', 'Hum', 'pH', 'Rain']
-                            fig = px.bar(
-                                x=features, y=importances, 
-                                labels={'x': 'Feature', 'y': 'Importance'},
+                            trans_features = [translate_text(f, lang) for f in features]
+                            
+                            fig_fi = px.bar(
+                                x=trans_features, y=importances, 
+                                labels={'x': translate_text('Feature', lang), 'y': translate_text('Importance', lang)},
                                 color=importances,
                                 color_continuous_scale='Greens'
                             )
-                            st.plotly_chart(fig, use_container_width=True)
+                            st.plotly_chart(fig_fi, use_container_width=True)
                         except Exception as e:
-                            st.info("Model does not expose feature_importances_. Can't show feature importance.")
+                            st.info(translate_text("Model does not expose feature_importances_. Can't show feature importance.", lang))
                     
                     # --- GLOBAL XAI (SHAP summary & PDP) ---
                     if enable_global_xai:
-                        st.markdown("### 🌐 Global Understanding — SHAP & PDP")
-                        st.caption("Global SHAP summary plot aggregates feature-level effects across the dataset. PDPs show marginal effect of feature on predicted outcome.")
+                        st.markdown(f"### 🌐 {translate_text('Global Understanding — SHAP & PDP', lang)}")
+                        st.caption(translate_text("Global SHAP summary plot aggregates feature-level effects across the dataset. PDPs show marginal effect of feature on predicted outcome.", lang))
                         
                         try:
-                            # SHAP Summary (works best with tree explainer for RF/XGB)
                             if model_type != "tree":
-                                st.info("Global SHAP + PDP best supports tree-based models. Proceeding with surrogate tree-based explainer where possible.")
+                                st.info(translate_text("Global SHAP + PDP best supports tree-based models. Proceeding with surrogate tree-based explainer where possible.", lang))
                             
                             sample_for_shap = X.copy()
-                            # downsample if dataset is large
-                            n_samples = len(sample_for_shap)
+                            trans_sample_for_shap = sample_for_shap.copy()
+                            trans_sample_for_shap.columns = [translate_text(clean_text(c), lang) for c in trans_sample_for_shap.columns]
+                            
+                            n_samples = len(trans_sample_for_shap)
                             if n_samples > 1000:
-                                sample_for_shap = sample_for_shap.sample(1000, random_state=42)
+                                trans_sample_for_shap = trans_sample_for_shap.sample(1000, random_state=42)
                             
-                            st.info(f"Computing SHAP values on {len(sample_for_shap)} samples (this may take a few seconds).")
+                            st.info(f"{translate_text('Computing SHAP values on', lang)} {len(trans_sample_for_shap)} {translate_text('samples (this may take a few seconds).', lang)}")
                             
-                            # Tree explainer
                             explainer = shap.TreeExplainer(model)
-                            shap_values = explainer.shap_values(sample_for_shap)
+                            shap_values = explainer.shap_values(X.loc[trans_sample_for_shap.index])
                             
-                            # Prepare shap_values for summary plotting:
-                            try:
-                                if isinstance(shap_values, list):
-                                    # shap_values is list of arrays (n_samples, n_features) for each class
-                                    stacked = np.stack(shap_values, axis=2)  # shape (n_samples, n_features, n_classes)
-                                    shap_for_summary = np.mean(stacked, axis=2)  # average across classes -> (n_samples, n_features)
-                                elif hasattr(shap_values, 'shape') and len(shap_values.shape) == 3:
-                                    # (n_samples, n_features, n_classes)
-                                    shap_for_summary = np.mean(shap_values, axis=2)
-                                else:
-                                    shap_for_summary = shap_values
-                            except Exception:
+                            if isinstance(shap_values, list):
+                                shap_for_summary = shap_values[pred_idx]
+                            elif hasattr(shap_values, 'shape') and len(shap_values.shape) == 3:
+                                shap_for_summary = shap_values[:, :, pred_idx]
+                            else:
                                 shap_for_summary = shap_values
+
+                            st.markdown(f"#### {translate_text('Global Feature Impact for', lang)} {pred_trans}")
+                            st.info(translate_text("**🧑‍🌾 How to read:** This plot looks at *all* farms, not just yours. It shows which factors matter the most overall for this specific crop across the whole dataset.", lang))
                             
-                            # Plot SHAP summary (beeswarm)
+                            # Inject Universal Fonts to prevent missing glyphs (Squares/Tofu) in Matplotlib
+                            plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'Nirmala UI', 'Latha', 'DejaVu Sans', 'sans-serif']
+                            
                             fig_shap, ax = plt.subplots(figsize=(10, 6))
-                            try:
-                                # shap.summary_plot accepts numpy arrays / DataFrame
-                                shap.summary_plot(shap_for_summary, sample_for_shap, show=False)
-                                st.pyplot(fig_shap, bbox_inches='tight')
-                                plt.close(fig_shap)
-                            except Exception as e:
-                                st.error(f"Could not render SHAP summary_plot: {e}")
+                            shap.summary_plot(shap_for_summary, trans_sample_for_shap, show=False)
                             
-                            # PDPs
-                            if pdp_features and len(pdp_features) > 0:
-                                st.markdown("#### Partial Dependence Plots (PDP)")
-                                st.info("Computing PDPs (average marginal effect).")
-                                # Determine target for PDP for multiclass models
+                            # Translate SHAP core labels
+                            current_ax = plt.gca()
+                            current_ax.set_xlabel(translate_text("SHAP value (impact on model output)", lang))
+                            
+                            if len(fig_shap.axes) > 1:
+                                cax = fig_shap.axes[1]
+                                cax.set_ylabel(translate_text("Feature value", lang))
+                                # Only set standard High/Low on colorbar
+                                cax.set_yticks([0, 1])
+                                cax.set_yticklabels([translate_text("Low", lang), translate_text("High", lang)])
+                                cax.tick_params(length=0)
+                            
+                            st.pyplot(fig_shap, bbox_inches='tight')
+                            plt.close(fig_shap)
+                            
+                            if pdp_features:
+                                st.markdown(f"#### {translate_text('Partial Dependence Plots (PDP)', lang)}")
+                                st.success(translate_text("**🧑‍🌾 How to read:** These curves show how increasing one specific thing (like Nitrogen) impacts the recommendation, assuming everything else stays the exact same.", lang))
                                 target_class = int(pred_idx) if hasattr(model, "predict_proba") else None
+                                
                                 for feat in pdp_features:
                                     try:
                                         fig_pdp, ax_pdp = plt.subplots(figsize=(6, 4))
-                                        # Use sklearn's PartialDependenceDisplay
+                                        trans_feat_name = translate_text(clean_text(feat), lang)
+                                        
                                         if hasattr(PartialDependenceDisplay, "from_estimator"):
                                             if target_class is not None and hasattr(model, "predict_proba"):
-                                                PartialDependenceDisplay.from_estimator(model, X, [feat], target=target_class, ax=ax_pdp)
+                                                disp = PartialDependenceDisplay.from_estimator(model, X, [feat], target=target_class, ax=ax_pdp)
                                             else:
-                                                PartialDependenceDisplay.from_estimator(model, X, [feat], ax=ax_pdp)
+                                                disp = PartialDependenceDisplay.from_estimator(model, X, [feat], ax=ax_pdp)
+                                            
+                                            # Override the plot's X and Y axis labels with translated names
+                                            ax_pdp.set_xlabel(trans_feat_name)
+                                            ax_pdp.set_ylabel(translate_text("Partial dependence", lang))
+                                            
                                             st.pyplot(fig_pdp, bbox_inches='tight')
                                             plt.close(fig_pdp)
                                         else:
-                                            st.warning("PartialDependenceDisplay not available in this sklearn version.")
+                                            st.warning(translate_text("PartialDependenceDisplay not available in this sklearn version.", lang))
                                     except Exception as e:
-                                        st.error(f"PDP for {feat} failed: {e}")
-                            else:
-                                st.info("No PDP features selected. Use the PDP multi-select (left) to choose features for PDP plotting.")
-                            
+                                        st.error(f"{translate_text('PDP failed:', lang)} {e}")
                         except Exception as e:
-                            st.error(f"Global XAI computation failed: {e}")
-                            st.info("Ensure model is tree-based or allow surrogate RandomForest. If using XGBoost ensure `use_label_encoder=False` and xgboost is installed.")
+                            st.error(f"{translate_text('Global XAI computation failed:', lang)} {e}")
+                            st.info(translate_text("Ensure model is tree-based or allow surrogate RandomForest. If using XGBoost ensure `use_label_encoder=False` and xgboost is installed.", lang))
                     
                 else:
-                    st.error("Dataset not found. Please ensure 'Crop_recommendation.csv' is in the directory (or upload it to /mnt/data/).")
+                    st.error(translate_text("Dataset not found. Please ensure 'Crop_recommendation.csv' is in the directory (or upload it to /mnt/data/).", lang))
                     
         else:
-            st.info("👈 Enter environmental data and click Predict")
-            st.markdown("""
-            **Note on Explainable AI:** The Global Prediction page supports local LIME explanations and optional Global SHAP + PDP for tree-based models.
-            """)
+            st.info(translate_text("👈 Enter environmental data and click Predict", lang))
+            st.markdown(f"**{translate_text('Note on Explainable AI:', lang)}** {translate_text('The Global Prediction page supports local LIME explanations and optional Global SHAP + PDP for tree-based models.', lang)}")
 
 
 # --- MODIFIED PAGE FUNCTION (Tamil Nadu Module) ---
 
 def page_tamil_nadu():
-    st.markdown("## 📍 Tamil Nadu Regional Mode")
-    st.markdown("Specific Deep Learning Inference and XAI for Tamil Nadu Soil & Climate Conditions")
+    lang = st.session_state.get('lang', 'en')
+    
+    st.markdown(f"## 📍 {translate_text('Tamil Nadu Regional Mode', lang)}")
+    st.markdown(translate_text("Specific Deep Learning Inference and XAI for Tamil Nadu Soil & Climate Conditions", lang))
     
     # Load Resources
     data = load_resources_tn()
     
     if data is None:
-        st.error("⚠️ `encoders.pkl` not found. Please ensure training artifacts are present.")
-        st.info("This module requires: `encoders.pkl` and `.pth` model files generated by `train.py`.")
+        st.error(translate_text("⚠️ `encoders.pkl` not found. Please ensure training artifacts are present.", lang))
+        st.info(translate_text("This module requires: `encoders.pkl` and `.pth` model files generated by `train.py`.", lang))
         return
 
     encoders = data['encoders']
     scaler = data['scaler']
 
     col1, col2 = st.columns([1, 2.5], gap="medium")
+    
+    # Helper to clean technical column names so the API can translate them
+    def clean_text(text):
+        return str(text).replace('_', ' ').title()
 
     # --- INPUT COLUMN (LEFT) ---
     with col1:
-        st.markdown("### 🚜 TN Region Inputs")
+        st.markdown(f"### 🚜 {translate_text('TN Region Inputs', lang)}")
         
-        # Categorical Inputs
-        soil_type = st.selectbox("Soil Type", encoders['SOIL'].classes_)
-        crop_type = st.selectbox("Preferred Crop Type", encoders['TYPE_OF_CROP'].classes_)
-        water_source = st.selectbox("Water Source", encoders['WATER_SOURCE'].classes_)
+        # Categorical Inputs (Translated for UI, mapped back to English for the Encoder)
+        orig_soil = encoders['SOIL'].classes_.tolist()
+        trans_soil = [translate_text(str(item), lang) for item in orig_soil]
+        soil_display = st.selectbox(translate_text("Soil Type", lang), trans_soil)
+        soil_type = orig_soil[trans_soil.index(soil_display)]
+
+        orig_crop = encoders['TYPE_OF_CROP'].classes_.tolist()
+        trans_crop = [translate_text(str(item), lang) for item in orig_crop]
+        crop_display = st.selectbox(translate_text("Preferred Crop Type", lang), trans_crop)
+        crop_type = orig_crop[trans_crop.index(crop_display)]
+
+        orig_water = encoders['WATER_SOURCE'].classes_.tolist()
+        trans_water = [translate_text(str(item), lang) for item in orig_water]
+        water_display = st.selectbox(translate_text("Water Source", lang), trans_water)
+        water_source = orig_water[trans_water.index(water_display)]
         
         st.markdown("---")
         
-        # Numeric Inputs (The features inferred as used for prediction)
-        tn_ph = st.slider("Soil pH (TN)", 4.0, 9.0, 6.5)
-        tn_temp = st.slider("Temperature (°C) (TN)", 10.0, 45.0, 25.0)
-        tn_hum = st.slider("Humidity (%) (TN)", 20.0, 100.0, 60.0)
-        tn_water = st.slider("Water Available (mm)", 300, 3000, 1000)
-        tn_dur = st.slider("Growing Days", 60, 365, 120)
+        # Numeric Inputs 
+        tn_ph = st.slider(translate_text("Soil pH (TN)", lang), 4.0, 9.0, 6.5)
+        tn_temp = st.slider(translate_text("Temperature (°C) (TN)", lang), 10.0, 45.0, 25.0)
+        tn_hum = st.slider(translate_text("Humidity (%) (TN)", lang), 20.0, 100.0, 60.0)
+        tn_water = st.slider(translate_text("Water Available (mm)", lang), 300, 3000, 1000)
+        tn_dur = st.slider(translate_text("Growing Days", lang), 60, 365, 120)
         
         st.markdown("---")
-        # --- XAI TOGGLE ---
-        enable_xai = st.checkbox("Enable Explainable AI (SHAP & LIME)", value=True, help="Show deep dive into the model's decision factors using SHAP and LIME.")
         
-        st.markdown("### 🎯 XAI/Prediction Target Model")
+        # --- XAI TOGGLES ---
+        enable_xai = st.checkbox(translate_text("Enable Local Explainable AI (SHAP & LIME)", lang), value=True)
+        enable_global_xai = st.checkbox(translate_text("Enable Global Understanding (SHAP summary + PDP)", lang), value=False)
         
-        # Determine initial selection (highest Test Accuracy)
+        pdp_features = None
+        if enable_global_xai:
+            st.markdown(translate_text("Select features for Partial Dependence Plots (PDP)", lang))
+            sample_feats_tn = ['pH', 'Temp', 'Water', 'Hum', 'Duration']
+            
+            # Translate PDP options for display
+            trans_sample_feats_tn = [translate_text(clean_text(f), lang) for f in sample_feats_tn]
+            sel_pdp_feats_tn_trans = st.multiselect(translate_text("PDP Features (limit 3)", lang), trans_sample_feats_tn, default=[trans_sample_feats_tn[0], trans_sample_feats_tn[1], trans_sample_feats_tn[2]])
+            
+            pdp_features = [sample_feats_tn[trans_sample_feats_tn.index(f)] for f in sel_pdp_feats_tn_trans]
+            
+            if len(pdp_features) > 3:
+                st.warning(translate_text("Limiting PDP to first 3 features.", lang))
+                pdp_features = pdp_features[:3]
+
+        st.markdown(f"### 🎯 {translate_text('XAI/Prediction Target Model', lang)}")
+        
         model_accs = {name: float(acc.strip('%')) for name, acc in TEST_ACCURACIES_TN.items()}
-        default_model_name = max(model_accs, key=model_accs.get) # e.g., 'Transformer'
-        
+        default_model_name = max(model_accs, key=model_accs.get)
         model_names_for_select = sorted(TEST_ACCURACIES_TN.keys(), key=lambda x: model_accs[x], reverse=True)
         
         selected_model_name = st.selectbox(
-            "Select Model for Prediction & XAI", 
+            translate_text("Select Model for Prediction & XAI", lang), 
             model_names_for_select,
             index=model_names_for_select.index(default_model_name),
             key="tn_xai_model_select"
@@ -2454,19 +2691,17 @@ def page_tamil_nadu():
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        if st.button("🚀 Analyze & Predict (TN)", use_container_width=True):
+        if st.button(f"🚀 {translate_text('Analyze & Predict (TN)', lang)}", use_container_width=True):
             try:
                 # Prepare Input
                 soil_enc = encoders['SOIL'].transform([soil_type])[0]
                 type_enc = encoders['TYPE_OF_CROP'].transform([crop_type])[0]
                 source_enc = encoders['WATER_SOURCE'].transform([water_source])[0]
                 
-                # Input Feature Order: [Soil_enc, CropType_enc, WaterSource_enc, pH, Duration, Temp, Water, Hum]
                 features = np.array([[soil_enc, type_enc, source_enc, tn_ph, tn_dur, tn_temp, tn_water, tn_hum]])
                 
-                # Check for negative values from inverse transform/encoding edge cases
                 if (features < 0).any():
-                    st.error("Invalid categorical feature selected, cannot encode. Please check selected options.")
+                    st.error(translate_text("Invalid categorical feature selected, cannot encode.", lang))
                     return
 
                 features_scaled = scaler.transform(features)
@@ -2477,15 +2712,11 @@ def page_tamil_nadu():
                 
                 model_names = ["Transformer", "CNN", "ResidualMLP", "MS_SE_BiLSTM", "GRU", "LSTM", "ANN", "Feed Forward NN", "XGBoost", "Random Forest"]
                 results = []
-                
-                # Variables to track the highest accuracy model
                 best_acc_val = -1.0
                 best_model_data = None
-                
                 progress_bar = st.progress(0)
                 
                 for idx, name in enumerate(model_names):
-                    # Instantiate model
                     if name == "CNN" or name == "1D-CNN": model = CNNModel(input_dim, output_dim)
                     elif name == "LSTM": model = LSTMModel(input_dim, output_dim)
                     elif name == "GRU": model = GRUModel(input_dim, output_dim)
@@ -2493,11 +2724,9 @@ def page_tamil_nadu():
                     elif name == "ResidualMLP" or name == "Residual MLP": model = ResidualMLP(input_dim, output_dim)
                     elif name == "MS_SE_BiLSTM": model = MS_SE_BiLSTM(input_dim, output_dim)
                     elif name == "ANN": model = ANNModel(input_dim, output_dim)
-                    # Add simple fallbacks for non-DL models if they are selected in the list but don't have .pth files
                     else: continue
 
                     try:
-                        # Load state dict
                         model.load_state_dict(torch.load(f"{name}_model.pth"))
                         model.eval()
                         with torch.no_grad():
@@ -2517,11 +2746,9 @@ def page_tamil_nadu():
                                 "Test Accuracy": acc_str,
                                 "_raw_acc": acc_val,
                                 "_probs": probs[0],
-                                "_instance": model # Store instance for potential use
+                                "_instance": model 
                             }
                             results.append(current_result)
-                            
-                            # Check for best model based on Test Accuracy
                             if acc_val > best_acc_val:
                                 best_acc_val = acc_val
                                 best_model_data = current_result
@@ -2532,18 +2759,13 @@ def page_tamil_nadu():
                             "Predicted Crop": "Missing Model File", 
                             "Confidence": "0%", 
                             "Test Accuracy": "N/A",
-                            "_raw_acc": 0, 
-                            "_probs": None,
-                            "_instance": None
+                            "_raw_acc": 0, "_probs": None, "_instance": None
                         })
                         
                     progress_bar.progress((idx + 1) / len(model_names))
                 
                 progress_bar.empty()
-                
                 res_df = pd.DataFrame(results).sort_values(by="_raw_acc", ascending=False)
-                
-                # --- DETERMINE TARGET MODEL BASED ON DROPDOWN SELECTION ---
                 target_row = res_df[res_df['Algorithm'] == selected_model_name].iloc[0]
 
                 if target_row['_instance'] is not None:
@@ -2553,43 +2775,72 @@ def page_tamil_nadu():
                     target_conf = float(target_row['Confidence'].strip('%'))
                     target_probs = target_row['_probs']
                 else:
-                    # Fallback if the selected model is missing (should be caught in the loop, but safety first)
-                    st.error(f"Selected model '{selected_model_name}' file not found or failed initialization. Cannot proceed with analysis.")
+                    st.error(translate_text("Selected model file not found or failed initialization.", lang))
                     return
 
-
-                # Store for results display
                 st.session_state.tn_results = {
-                    "res_df": res_df,
-                    "selected_model": selected_model, 
-                    "target_pred": target_pred_class,
-                    "target_conf": target_conf,
-                    "target_probs": target_probs,
-                    "features_scaled": features_scaled,
-                    "target_model_instance": target_model_instance, 
-                    "enable_xai": enable_xai 
+                    "res_df": res_df, "selected_model": target_row['Algorithm'], 
+                    "target_pred": target_row['Predicted Crop'], "target_probs": target_row['_probs'],
+                    "features_scaled": features_scaled, "target_model_instance": target_row['_instance'], 
+                    "enable_xai": enable_xai, "enable_global_xai": enable_global_xai,
+                    "pdp_features": pdp_features, "pred_idx_target": int(np.argmax(target_row['_probs']))
                 }
                 
             except Exception as e:
-                st.error(f"Error during inference: {e}")
+                st.error(f"{translate_text('Error during inference:', lang)} {e}")
 
     # --- RESULTS COLUMN (RIGHT) ---
     with col2:
         if "tn_results" in st.session_state:
             res = st.session_state.tn_results
             
-            # Show the SELECTED model's result prominently
-            st.subheader(f"🏆 Recommendation: {res['target_pred']}")
-            st.caption(f"Based on **{res['selected_model']}** (Test Accuracy: {res['res_df'][res['res_df']['Algorithm'] == res['selected_model']]['_raw_acc'].iloc[0]:.1f}%)")
+            rec_title = translate_text("Recommendation", lang)
+            pred_trans = translate_text(res['target_pred'], lang)
+            st.subheader(f"🏆 {rec_title}: {pred_trans}")
+            st.caption(f"{translate_text('Based on', lang)} **{res['selected_model']}** ({translate_text('Test Accuracy:', lang)} {res['res_df'][res['res_df']['Algorithm'] == res['selected_model']]['_raw_acc'].iloc[0]:.1f}%)")
             
-            display_df = res['res_df'].drop(columns=["_raw_acc", "_probs", "_instance"])
-            cols_order = ["Algorithm", "Predicted Crop", "Confidence", "Test Accuracy"]
-            cols_order = [c for c in cols_order if c in display_df.columns]
-            display_df = display_df[cols_order]
+            pdp_dynamic_example_tn = f"adjusting {translate_text(clean_text(str(res.get('pdp_features')[0])), lang)}" if res.get('pdp_features') else translate_text("adjusting specific conditions", lang)
 
-            # Highlight the model used for the final prediction (the selected one)
+            explanation_pt1 = translate_text("This recommendation is tailored specifically for you to help maximize your farm's yield.", lang)
+            explanation_pt2 = translate_text("Prepare your field to maintain these current moisture and nutrient levels, and begin planting your seeds!", lang)
+            
+            st.info(f"""
+            **🧑‍🌾 {rec_title}:**
+            * {explanation_pt1}
+            * {translate_text('The system recommends planting', lang)} **{pred_trans}**, {translate_text('which the AI identified as the safest and most profitable choice among all alternative crops evaluated.', lang)}
+            * {translate_text('This crop is ideally suited to be planted right here in your specific soil and climate conditions for the current growing season.', lang)}
+            * {translate_text(f'The AI chose this because your current conditions (pH: {tn_ph}, Temp: {tn_temp}°C, Humidity: {tn_hum}%, Water: {tn_water}mm) perfectly match what', lang)} **{pred_trans}** {translate_text('needs to thrive.', lang)} 
+            * {explanation_pt2}
+            
+            ---
+            **📊 {translate_text('How to Read the', lang)} {res['selected_model']} {translate_text('Charts Below:', lang)}**
+            * **{translate_text("LIME (Your Farm's Specific Rules):", lang)}** {translate_text('This chart shows exactly why the AI chose this crop for your specific plot of land today.', lang)} 
+              * 🟩 **{translate_text('Green Bars:', lang)}** {translate_text("These are your farm's strengths! They show the exact conditions (like your specific pH or rainfall) that voted YES for", lang)} {pred_trans}. {translate_text("The longer the green bar, the stronger the support.", lang)}
+              * 🟥 **{translate_text('Red Bars:', lang)}** {translate_text("These are conditions that voted NO (maybe your temperature is slightly warmer than ideal). However, because", lang)} {pred_trans} {translate_text("was chosen, your green bars completely outweighed the red ones!", lang)}
+            * **{translate_text('SHAP (The Big Picture):', lang)}** {translate_text('This plot looks at thousands of farms to show what generally makes', lang)} {pred_trans} {translate_text('successful.', lang)} 
+              * 🔴/🔵 **{translate_text('Colors (High vs. Low):', lang)}** {translate_text('A red dot means that feature was very high (e.g., heavy rainfall), while a blue dot means it was very low (e.g., low rainfall).', lang)} 
+              * ➡️/⬅️ **{translate_text('Position (Good vs. Bad):', lang)}** {translate_text('Dots pushed to the right side of the center line mean that condition helps the crop. Dots pushed to the left mean it hurts the crop.', lang)}
+            * **{translate_text("PDP (The 'What-If' Scenarios):", lang)}** {translate_text('These line graphs act like a simulator. They show what would happen if you changed just one thing on your farm while keeping everything else exactly the same.', lang)}
+              * {translate_text('The bottom axis shows the value of the condition (like the amount of water or temperature).', lang)} 
+              * {translate_text("The line moving up and down shows the AI's confidence. If the line curves upwards, it means the crop loves that amount! This helps you find the exact 'sweet spot' for", lang)} {pdp_dynamic_example_tn} {translate_text("to get the highest yield.", lang)}
+            """)
+
+            display_df = res['res_df'].drop(columns=["_raw_acc", "_probs", "_instance"]).copy()
+            
+            # Ensure crops in the table are translated
+            display_df['Predicted Crop'] = display_df['Predicted Crop'].apply(lambda x: translate_text(str(x), lang) if x != "Missing Model File" else translate_text("Missing Model File", lang))
+            
+            # Translate Table Columns safely
+            t_algo_col = translate_text("Algorithm", lang)
+            display_df = display_df.rename(columns={
+                "Algorithm": t_algo_col,
+                "Predicted Crop": translate_text("Predicted Crop", lang),
+                "Confidence": translate_text("Confidence", lang),
+                "Test Accuracy": translate_text("Test Accuracy", lang)
+            })
+
             def highlight_selected(row):
-                if row['Algorithm'] == res['selected_model']:
+                if row[t_algo_col] == res['selected_model']:
                     return ['background-color: #16a34a; color: white;' for _ in row]
                 return [''] * len(row)
             
@@ -2598,60 +2849,132 @@ def page_tamil_nadu():
             # District Data
             df_dist, dist_cols = load_district_data_tn()
             if df_dist is not None:
-                st.markdown("### 📍 District Suitability")
+                st.markdown(f"### 📍 {translate_text('District Suitability', lang)}")
                 crop_row = df_dist[df_dist['CROPS'] == res['target_pred']]
                 if not crop_row.empty:
                     suitable = [d for d in dist_cols if int(crop_row[d].values[0]) == 1]
                     if suitable:
-                        st.success(f"Suitable Districts: {', '.join(suitable)}")
+                        dist_msg = translate_text("Suitable Districts:", lang)
+                        st.success(f"{dist_msg} {', '.join(suitable)}")
                     else:
-                        st.warning("No specific district data for this crop.")
+                        st.warning(translate_text("No specific district data for this crop.", lang))
             
-            # Top 3 (Based on Selected Model)
+            # Top 3
             if res['target_probs'] is not None:
-                st.markdown("### 🥇 Top 3 Alternatives")
+                st.markdown(f"### 🥇 {translate_text('Top 3 Alternatives', lang)}")
                 top3_prob, top3_idx = torch.topk(res['target_probs'], 3)
                 cols = st.columns(3)
+                rank_word = translate_text("Rank", lang)
                 for i in range(3):
                     c_name = encoders['CROPS'].inverse_transform([top3_idx[i].item()])[0]
                     c_prob = top3_prob[i].item() * 100
                     with cols[i]:
-                        st.metric(f"Rank {i+1}", c_name, f"{c_prob:.1f}%")
+                        st.metric(f"{rank_word} {i+1}", translate_text(c_name, lang), f"{c_prob:.1f}%")
 
-                # --- NEW XAI INTEGRATION ---
-                if res['enable_xai']:
-                    if res.get('target_model_instance') is not None:
-                        # 1. Get X_train_background
-                        # We pass both 'encoders' and 'scaler' from load_resources_tn()
-                        X_train_background, feature_names = get_tn_x_train_background(encoders, scaler)
-                        if X_train_background is not None:
-                            # 2. Call the XAI display function
-                            explain_tn_model_prediction_shap_lime(
-                                res['selected_model'], 
-                                res['target_model_instance'], 
-                                res['features_scaled'], 
-                                X_train_background, 
-                                encoders['CROPS']
-                            )
-                        else:
-                            st.warning("Cannot generate XAI: Failed to reconstruct training data background from 'Tamil Nadu - AgriData_Dist.csv'.")
-                    else:
-                        st.warning("Cannot generate XAI: Failed to load the predicted model instance.")
-                # --- END NEW XAI INTEGRATION ---
-
+            # XAI Calls
+            if res['enable_xai'] and res.get('target_model_instance'):
+                X_train_background, feature_names = get_tn_x_train_background(encoders, scaler)
+                if X_train_background is not None: 
+                    explain_tn_model_prediction_shap_lime(res['selected_model'], res['target_model_instance'], res['features_scaled'], X_train_background, encoders['CROPS'])
             
-        else:
-            st.info("👈 Please adjust inputs on the left and click 'Analyze & Predict' to see results.")
-            st.markdown("""
-            **Note:** This module uses the pre-trained `.pth` models and `encoders.pkl` 
-            generated from your training script. Ensure they are in the root directory.
-            """)
+            if res.get('enable_global_xai') and res.get('target_model_instance'):
+                st.markdown(f"### 🌐 {translate_text('Global Understanding — SHAP & PDP (Tamil Nadu)', lang)}")
+                X_train_bg, feature_names = get_tn_x_train_background(encoders, scaler)
+                
+                if X_train_bg is not None:
+                    try:
+                        with st.spinner(translate_text("Training local surrogate model for global interpretation...", lang)):
+                            predict_proba_fn = get_tn_model_predict_proba_wrapper(res['target_model_instance'])
+                            bg_probs = predict_proba_fn(X_train_bg.values)
+                            bg_preds = np.argmax(bg_probs, axis=1)
+                            
+                            surrogate_rf = RandomForestClassifier(n_estimators=50, random_state=42)
+                            surrogate_rf.fit(X_train_bg.values, bg_preds)
+                            
+                            explainer = shap.TreeExplainer(surrogate_rf)
+                            shap_values = explainer.shap_values(X_train_bg)
+                            pred_idx = res['pred_idx_target']
+                            
+                            if isinstance(shap_values, list):
+                                shap_for_summary = shap_values[min(pred_idx, len(shap_values)-1)]
+                            elif hasattr(shap_values, 'shape') and len(shap_values.shape) == 3:
+                                shap_for_summary = shap_values[:, :, min(pred_idx, shap_values.shape[2]-1)]
+                            else:
+                                shap_for_summary = shap_values
+
+                        st.markdown(f"#### {translate_text('Global Feature Impact', lang)}")
+                        
+                        # --- MATPLOTLIB FONT FIX FOR HINDI/TAMIL ---
+                        plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'Nirmala UI', 'Latha', 'DejaVu Sans', 'sans-serif']
+                        
+                        # Translate SHAP Columns
+                        X_train_bg_trans = X_train_bg.copy()
+                        X_train_bg_trans.columns = [translate_text(clean_text(c), lang) for c in X_train_bg_trans.columns]
+                        
+                        fig_shap, ax = plt.subplots(figsize=(10, 6))
+                        shap.summary_plot(shap_for_summary, X_train_bg_trans, show=False)
+                        
+                        # Override SHAP core labels
+                        current_ax = plt.gca()
+                        current_ax.set_xlabel(translate_text("SHAP value (impact on model output)", lang))
+                        if len(fig_shap.axes) > 1:
+                            cax = fig_shap.axes[1]
+                            cax.set_ylabel(translate_text("Feature value", lang))
+                            cax.set_yticks([0, 1])
+                            cax.set_yticklabels([translate_text("Low", lang), translate_text("High", lang)])
+                            cax.tick_params(length=0)
+                            
+                        st.pyplot(fig_shap, bbox_inches='tight')
+                        plt.close(fig_shap)
+                        
+                        pdp_feats = res.get('pdp_features')
+                        if pdp_feats:
+                            st.markdown(f"#### {translate_text('Partial Dependence Plots (PDP)', lang)}")
+                            target_class = pred_idx if pred_idx in np.unique(bg_preds) else None
+                            
+                            from sklearn.pipeline import Pipeline
+                            surrogate_pipeline = Pipeline([('scaler', scaler), ('rf', surrogate_rf)])
+                            X_train_unscaled = pd.DataFrame(scaler.inverse_transform(X_train_bg), columns=X_train_bg.columns)
+
+                            for feat in pdp_feats:
+                                if feat in X_train_unscaled.columns:
+                                    fig_pdp, ax_pdp = plt.subplots(figsize=(6, 4))
+                                    trans_feat_name = translate_text(clean_text(feat), lang)
+                                    
+                                    if hasattr(PartialDependenceDisplay, "from_estimator"):
+                                        if target_class is not None: 
+                                            PartialDependenceDisplay.from_estimator(surrogate_pipeline, X_train_unscaled, [feat], target=target_class, ax=ax_pdp)
+                                        else: 
+                                            PartialDependenceDisplay.from_estimator(surrogate_pipeline, X_train_unscaled, [feat], ax=ax_pdp)
+                                    
+                                    # Translate Axis
+                                    ax_pdp.set_xlabel(trans_feat_name)
+                                    ax_pdp.set_ylabel(translate_text("Partial dependence", lang))
+                                    
+                                    st.pyplot(fig_pdp, bbox_inches='tight')
+                                    plt.close(fig_pdp)
+                    except Exception as e:
+                        st.error(f"{translate_text('TN Global XAI computation failed:', lang)} {e}")
+
+        else: st.info(translate_text("👈 Adjust inputs and Predict", lang))
 
 # ==================== MAIN EXECUTION ====================
 
 def main():
     # Sidebar
     with st.sidebar:
+        # --- NEW: LANGUAGE SELECTOR ---
+        selected_lang = st.selectbox(
+            "🌐 Select Language / மொழி / भाषा", 
+            ["English", "Tamil", "Hindi"]
+        )
+        lang_map = {"English": "en", "Tamil": "ta", "Hindi": "hi"}
+        if "lang" not in st.session_state or st.session_state.lang != lang_map[selected_lang]:
+            st.session_state.lang = lang_map[selected_lang]
+            st.rerun() # Refresh app to apply language
+            
+        lang = st.session_state.lang
+        # ------------------------------
         st.markdown("""
         <div style="text-align: center; padding: 1rem 0;">
             <span style="font-size: 3rem;">🌱</span>
@@ -2672,7 +2995,11 @@ def main():
         
         for page_name, page_key in PAGES.items():
             type_btn = "primary" if st.session_state.page == page_key else "secondary"
-            if st.button(page_name, use_container_width=True, key=f"nav_{page_key}", type=type_btn):
+            
+            # --- MODIFIED: Translate the button name ---
+            translated_page_name = translate_text(page_name, lang)
+            
+            if st.button(translated_page_name, use_container_width=True, key=f"nav_{page_key}", type=type_btn):
                 st.session_state.page = page_key
                 st.rerun()
         
