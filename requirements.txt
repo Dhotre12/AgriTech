@@ -9,3 +9,4 @@ xgboost
 shap
 matplotlib
 lime
+googletrans==4.0.0-rc1
