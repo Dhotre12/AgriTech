@@ -2348,6 +2348,51 @@ def page_prediction_global():
                     st.subheader(f"🏆 {rec_title}: {pred_trans}")
                     st.caption(f"{translate_text('Based on', lang)} **{model_choice}** ({translate_text('Test Accuracy:', lang)} {acc_val:.1f}%)")
 
+                    # Extract Top 3 logic early to compute alternative crop ranges
+                    top3_idx = np.argsort(probs)[::-1][:3]
+                    top3_probs = probs[top3_idx]
+                    top3_crops = le.inverse_transform(top3_idx)
+
+                    # --- DYNAMIC RANGE CALCULATION ---
+                    crop_data = df[df['label'] == pred]
+                    n_min, n_max = crop_data['N'].min(), crop_data['N'].max()
+                    p_min, p_max = crop_data['P'].min(), crop_data['P'].max()
+                    k_min, k_max = crop_data['K'].min(), crop_data['K'].max()
+                    t_min, t_max = crop_data['temperature'].min(), crop_data['temperature'].max()
+                    h_min, h_max = crop_data['humidity'].min(), crop_data['humidity'].max()
+                    ph_min, ph_max = crop_data['ph'].min(), crop_data['ph'].max()
+                    r_min, r_max = crop_data['rainfall'].min(), crop_data['rainfall'].max()
+                    
+                    # Using double spaces at the start forces Streamlit to render them cleanly as sub-bullets
+                    range_details = (
+                        f"  * **Nitrogen (N):** {n_min:.0f} - {n_max:.0f}\n"
+                        f"  * **Phosphorus (P):** {p_min:.0f} - {p_max:.0f}\n"
+                        f"  * **Potassium (K):** {k_min:.0f} - {k_max:.0f}\n"
+                        f"  * **{translate_text('Temperature', lang)}:** {t_min:.1f}°C - {t_max:.1f}°C\n"
+                        f"  * **{translate_text('Humidity', lang)}:** {h_min:.1f}% - {h_max:.1f}%\n"
+                        f"  * **pH:** {ph_min:.1f} - {ph_max:.1f}\n"
+                        f"  * **{translate_text('Rainfall', lang)}:** {r_min:.1f}mm - {r_max:.1f}mm"
+                    )
+
+                    alt_details = ""
+                    for alt_c in top3_crops[1:]: # Skip the main prediction
+                        alt_d = df[df['label'] == alt_c]
+                        a_n_min, a_n_max = alt_d['N'].min(), alt_d['N'].max()
+                        a_p_min, a_p_max = alt_d['P'].min(), alt_d['P'].max()
+                        a_k_min, a_k_max = alt_d['K'].min(), alt_d['K'].max()
+                        a_t_min, a_t_max = alt_d['temperature'].min(), alt_d['temperature'].max()
+                        a_h_min, a_h_max = alt_d['humidity'].min(), alt_d['humidity'].max()
+                        a_ph_min, a_ph_max = alt_d['ph'].min(), alt_d['ph'].max()
+                        a_r_min, a_r_max = alt_d['rainfall'].min(), alt_d['rainfall'].max()
+                        
+                        alt_trans = translate_text(alt_c, lang)
+                        shift_text = translate_text('Consider if conditions shift towards', lang)
+                        temp_text = translate_text('Temp', lang)
+                        hum_text = translate_text('Humidity', lang)
+                        rain_text = translate_text('Rain', lang)
+                        
+                        alt_details += f"  * **{alt_trans}:** {shift_text} N: {a_n_min:.0f}-{a_n_max:.0f}, P: {a_p_min:.0f}-{a_p_max:.0f}, K: {a_k_min:.0f}-{a_k_max:.0f}, {temp_text}: {a_t_min:.1f}-{a_t_max:.1f}°C, {hum_text}: {a_h_min:.1f}-{a_h_max:.1f}%, pH: {a_ph_min:.1f}-{a_ph_max:.1f}, {rain_text}: {a_r_min:.1f}-{a_r_max:.1f}mm.\n"
+
                     # Determine dynamic text for PDP features
                     pdp_dynamic_example = f"adjusting {translate_text(clean_text(pdp_features[0]), lang)}" if pdp_features else translate_text("adjusting specific nutrients", lang)
 
@@ -2355,26 +2400,32 @@ def page_prediction_global():
                     explanation_pt1 = translate_text("This recommendation is tailored specifically for you to help maximize your farm's yield.", lang)
                     explanation_pt2 = translate_text("Prepare your field to maintain these current moisture and nutrient levels, and begin planting your seeds!", lang)
                     
-                    st.info(f"""
-                    **🧑‍🌾 {rec_title}:**
-                    * {explanation_pt1}
-                    * {translate_text('The system recommends planting', lang)} **{pred_trans}**, {translate_text('which the AI identified as the safest and most profitable choice among all alternative crops evaluated.', lang)}
-                    * {translate_text('This crop is ideally suited to be planted right here in your specific soil and climate conditions for the current growing season.', lang)}
-                    * {translate_text(f'The AI chose this because your current soil nutrients (N: {n}, P: {p}, K: {k}) and weather conditions (Temp: {temp}°C, Humidity: {hum}%) perfectly match what', lang)} **{pred_trans}** {translate_text('needs to thrive.', lang)} 
-                    * {explanation_pt2}
+                    import textwrap
                     
-                    ---
-                    **📊 {translate_text('How to Read the', lang)} {model_choice} {translate_text('Charts Below:', lang)}**
-                    * **{translate_text("LIME (Your Farm's Specific Rules):", lang)}** {translate_text('This chart shows exactly why the AI chose this crop for your specific plot of land today.', lang)} 
-                      * 🟩 **{translate_text('Green Bars:', lang)}** {translate_text("These are your farm's strengths! They show the exact conditions (like your specific pH or rainfall) that voted YES for", lang)} {pred_trans}. {translate_text("The longer the green bar, the stronger the support.", lang)}
-                      * 🟥 **{translate_text('Red Bars:', lang)}** {translate_text("These are conditions that voted NO (maybe your temperature is slightly warmer than ideal). However, because", lang)} {pred_trans} {translate_text("was chosen, your green bars completely outweighed the red ones!", lang)}
-                    * **{translate_text('SHAP (The Big Picture):', lang)}** {translate_text('This plot looks at thousands of farms to show what generally makes', lang)} {pred_trans} {translate_text('successful.', lang)} 
-                      * 🔴/🔵 **{translate_text('Colors (High vs. Low):', lang)}** {translate_text('A red dot means that feature was very high (e.g., heavy rainfall), while a blue dot means it was very low (e.g., low rainfall).', lang)} 
-                      * ➡️/⬅️ **{translate_text('Position (Good vs. Bad):', lang)}** {translate_text('Dots pushed to the right side of the center line mean that condition helps the crop. Dots pushed to the left mean it hurts the crop.', lang)}
-                    * **{translate_text("PDP (The 'What-If' Scenarios):", lang)}** {translate_text('These line graphs act like a simulator. They show what would happen if you changed just one thing on your farm while keeping everything else exactly the same.', lang)}
-                      * {translate_text('The bottom axis shows the value of the condition (like the amount of Nitrogen).', lang)} 
-                      * {translate_text("The line moving up and down shows the AI's confidence. If the line curves upwards, it means the crop loves that amount! This helps you find the exact 'sweet spot' for", lang)} {pdp_dynamic_example} {translate_text("to get the highest yield.", lang)}
-                    """)
+                    # NOTE: This string must be flushed completely to the left margin!
+                    info_text = f"""**🧑‍🌾 {rec_title}:**
+* {explanation_pt1}
+* {translate_text('The system recommends planting', lang)} **{pred_trans}**, {translate_text('which the AI identified as the safest and most profitable choice among all alternative crops evaluated.', lang)}
+* {translate_text('This crop is ideally suited to be planted right here in your specific soil and climate conditions for the current growing season.', lang)}
+* **{translate_text('Ideal Ranges for', lang)} {pred_trans}:**
+{range_details}
+* **{translate_text('Alternative Options (If conditions fluctuate):', lang)}**
+{alt_details}
+* {explanation_pt2}
+
+---
+**📊 {translate_text('How to Read the', lang)} {model_choice} {translate_text('Charts Below:', lang)}**
+* **{translate_text("LIME (Your Farm's Specific Rules):", lang)}** {translate_text('This chart shows exactly why the AI chose this crop for your specific plot of land today.', lang)} 
+  * 🟩 **{translate_text('Green Bars:', lang)}** {translate_text("These are your farm's strengths! They show the exact conditions (like your specific pH or rainfall) that voted YES for", lang)} {pred_trans}. {translate_text("The longer the green bar, the stronger the support.", lang)}
+  * 🟥 **{translate_text('Red Bars:', lang)}** {translate_text("These are conditions that voted NO (maybe your temperature is slightly warmer than ideal). However, because", lang)} {pred_trans} {translate_text("was chosen, your green bars completely outweighed the red ones!", lang)}
+* **{translate_text('SHAP (The Big Picture):', lang)}** {translate_text('This plot looks at thousands of farms to show what generally makes', lang)} {pred_trans} {translate_text('successful.', lang)} 
+  * 🔴/🔵 **{translate_text('Colors (High vs. Low):', lang)}** {translate_text('A red dot means that feature was very high (e.g., heavy rainfall), while a blue dot means it was very low (e.g., low rainfall).', lang)} 
+  * ➡️/⬅️ **{translate_text('Position (Good vs. Bad):', lang)}** {translate_text('Dots pushed to the right side of the center line mean that condition helps the crop. Dots pushed to the left mean it hurts the crop.', lang)}
+* **{translate_text("PDP (The 'What-If' Scenarios):", lang)}** {translate_text('These line graphs act like a simulator. They show what would happen if you changed just one thing on your farm while keeping everything else exactly the same.', lang)}
+  * {translate_text('The bottom axis shows the value of the condition (like the amount of Nitrogen).', lang)} 
+  * {translate_text("The line moving up and down shows the AI's confidence. If the line curves upwards, it means the crop loves that amount! This helps you find the exact 'sweet spot' for", lang)} {pdp_dynamic_example} {translate_text("to get the highest yield.", lang)}"""
+                    
+                    st.info(info_text)
                     # ---------------------------------------------
 
                     # 3. Multi-Model Comparison Table
@@ -2414,9 +2465,6 @@ def page_prediction_global():
 
                     # 4. Top 3 Alternatives
                     st.markdown(f"### 🥇 {translate_text('Top 3 Alternatives', lang)}")
-                    top3_idx = np.argsort(probs)[::-1][:3]
-                    top3_probs = probs[top3_idx]
-                    top3_crops = le.inverse_transform(top3_idx)
                     
                     cols = st.columns(3)
                     rank_word = translate_text("Rank", lang)
@@ -2802,26 +2850,92 @@ def page_tamil_nadu():
             explanation_pt1 = translate_text("This recommendation is tailored specifically for you to help maximize your farm's yield.", lang)
             explanation_pt2 = translate_text("Prepare your field to maintain these current moisture and nutrient levels, and begin planting your seeds!", lang)
             
-            st.info(f"""
-            **🧑‍🌾 {rec_title}:**
-            * {explanation_pt1}
-            * {translate_text('The system recommends planting', lang)} **{pred_trans}**, {translate_text('which the AI identified as the safest and most profitable choice among all alternative crops evaluated.', lang)}
-            * {translate_text('This crop is ideally suited to be planted right here in your specific soil and climate conditions for the current growing season.', lang)}
-            * {translate_text(f'The AI chose this because your current conditions (pH: {tn_ph}, Temp: {tn_temp}°C, Humidity: {tn_hum}%, Water: {tn_water}mm) perfectly match what', lang)} **{pred_trans}** {translate_text('needs to thrive.', lang)} 
-            * {explanation_pt2}
+            # --- DYNAMIC RANGE CALCULATION FOR TAMIL NADU ---
+            top3_prob, top3_idx = torch.topk(res['target_probs'], 3)
+            top3_crops = [encoders['CROPS'].inverse_transform([idx.item()])[0] for idx in top3_idx]
             
-            ---
-            **📊 {translate_text('How to Read the', lang)} {res['selected_model']} {translate_text('Charts Below:', lang)}**
-            * **{translate_text("LIME (Your Farm's Specific Rules):", lang)}** {translate_text('This chart shows exactly why the AI chose this crop for your specific plot of land today.', lang)} 
-              * 🟩 **{translate_text('Green Bars:', lang)}** {translate_text("These are your farm's strengths! They show the exact conditions (like your specific pH or rainfall) that voted YES for", lang)} {pred_trans}. {translate_text("The longer the green bar, the stronger the support.", lang)}
-              * 🟥 **{translate_text('Red Bars:', lang)}** {translate_text("These are conditions that voted NO (maybe your temperature is slightly warmer than ideal). However, because", lang)} {pred_trans} {translate_text("was chosen, your green bars completely outweighed the red ones!", lang)}
-            * **{translate_text('SHAP (The Big Picture):', lang)}** {translate_text('This plot looks at thousands of farms to show what generally makes', lang)} {pred_trans} {translate_text('successful.', lang)} 
-              * 🔴/🔵 **{translate_text('Colors (High vs. Low):', lang)}** {translate_text('A red dot means that feature was very high (e.g., heavy rainfall), while a blue dot means it was very low (e.g., low rainfall).', lang)} 
-              * ➡️/⬅️ **{translate_text('Position (Good vs. Bad):', lang)}** {translate_text('Dots pushed to the right side of the center line mean that condition helps the crop. Dots pushed to the left mean it hurts the crop.', lang)}
-            * **{translate_text("PDP (The 'What-If' Scenarios):", lang)}** {translate_text('These line graphs act like a simulator. They show what would happen if you changed just one thing on your farm while keeping everything else exactly the same.', lang)}
-              * {translate_text('The bottom axis shows the value of the condition (like the amount of water or temperature).', lang)} 
-              * {translate_text("The line moving up and down shows the AI's confidence. If the line curves upwards, it means the crop loves that amount! This helps you find the exact 'sweet spot' for", lang)} {pdp_dynamic_example_tn} {translate_text("to get the highest yield.", lang)}
-            """)
+            df_tn, _ = load_district_data_tn()
+            range_details = ""
+            alt_details = ""
+            
+            if df_tn is not None and not df_tn.empty:
+                tn_target = 'CROPS' if 'CROPS' in df_tn.columns else ('Crops' if 'Crops' in df_tn.columns else None)
+                raw_col_names = [c for c in df_tn.columns if isinstance(c, str)]
+                def find_best_match(name, candidates):
+                    return next((c for c in candidates if c.strip() == name.strip()), None)
+                    
+                col_ph = find_best_match('SOIL_PH_LOW', raw_col_names)
+                col_temp = find_best_match('MIN_TEMP', raw_col_names)
+                col_hum = find_best_match('RELATIVE_HUMIDITY_MIN', raw_col_names)
+                col_water = find_best_match('WATER REQUIRED_MIN', raw_col_names)
+                col_dur = find_best_match('CROPDURATION_MIN', raw_col_names)
+                
+                # Force numeric conversion to safely calculate min/max
+                for c in [col_ph, col_temp, col_hum, col_water, col_dur]:
+                    if c: df_tn[c] = pd.to_numeric(df_tn[c], errors='coerce')
+                
+                if tn_target:
+                    # 1. Main Crop Ranges
+                    crop_data = df_tn[df_tn[tn_target] == res['target_pred']]
+                    if not crop_data.empty:
+                        ph_min, ph_max = crop_data[col_ph].min() if col_ph else 0, crop_data[col_ph].max() if col_ph else 0
+                        t_min, t_max = crop_data[col_temp].min() if col_temp else 0, crop_data[col_temp].max() if col_temp else 0
+                        h_min, h_max = crop_data[col_hum].min() if col_hum else 0, crop_data[col_hum].max() if col_hum else 0
+                        w_min, w_max = crop_data[col_water].min() if col_water else 0, crop_data[col_water].max() if col_water else 0
+                        d_min, d_max = crop_data[col_dur].min() if col_dur else 0, crop_data[col_dur].max() if col_dur else 0
+                        
+                        range_details = (
+                            f"  * **{translate_text('Temperature', lang)}:** {t_min:.1f}°C - {t_max:.1f}°C\n"
+                            f"  * **{translate_text('Humidity', lang)}:** {h_min:.1f}% - {h_max:.1f}%\n"
+                            f"  * **pH:** {ph_min:.1f} - {ph_max:.1f}\n"
+                            f"  * **{translate_text('Water Required', lang)}:** {w_min:.0f}mm - {w_max:.0f}mm\n"
+                            f"  * **{translate_text('Growing Days', lang)}:** {d_min:.0f} - {d_max:.0f} {translate_text('days', lang)}\n"
+                        )
+
+                    # 2. Alternative Crops Ranges
+                    for alt_c in top3_crops[1:]:
+                        alt_d = df_tn[df_tn[tn_target] == alt_c]
+                        if not alt_d.empty:
+                            a_t_min, a_t_max = alt_d[col_temp].min() if col_temp else 0, alt_d[col_temp].max() if col_temp else 0
+                            a_h_min, a_h_max = alt_d[col_hum].min() if col_hum else 0, alt_d[col_hum].max() if col_hum else 0
+                            a_ph_min, a_ph_max = alt_d[col_ph].min() if col_ph else 0, alt_d[col_ph].max() if col_ph else 0
+                            a_w_min, a_w_max = alt_d[col_water].min() if col_water else 0, alt_d[col_water].max() if col_water else 0
+                            a_d_min, a_d_max = alt_d[col_dur].min() if col_dur else 0, alt_d[col_dur].max() if col_dur else 0
+                            
+                            alt_trans = translate_text(alt_c, lang)
+                            shift_text = translate_text('Consider if conditions shift towards', lang)
+                            temp_text = translate_text('Temp', lang)
+                            hum_text = translate_text('Humidity', lang)
+                            water_text = translate_text('Water', lang)
+                            dur_text = translate_text('Days', lang)
+                            
+                            alt_details += f"  * **{alt_trans}:** {shift_text} {temp_text}: {a_t_min:.1f}-{a_t_max:.1f}°C, {hum_text}: {a_h_min:.1f}-{a_h_max:.1f}%, pH: {a_ph_min:.1f}-{a_ph_max:.1f}, {water_text}: {a_w_min:.0f}-{a_w_max:.0f}mm, {dur_text}: {a_d_min:.0f}-{a_d_max:.0f}.\n"
+
+            # ALIGN EVERYTHING TO THE LEFT MARGIN TO PREVENT MARKDOWN CODE BLOCKS
+            import textwrap
+            info_text_tn = f"""**🧑‍🌾 {rec_title}:**
+* {explanation_pt1}
+* {translate_text('The system recommends planting', lang)} **{pred_trans}**, {translate_text('which the AI identified as the safest and most profitable choice among all alternative crops evaluated.', lang)}
+* {translate_text('This crop is ideally suited to be planted right here in your specific soil and climate conditions for the current growing season.', lang)}
+* **{translate_text('Ideal Ranges for', lang)} {pred_trans}:**
+{range_details}
+* **{translate_text('Alternative Options (If conditions fluctuate):', lang)}**
+{alt_details}
+* {explanation_pt2}
+
+---
+**📊 {translate_text('How to Read the', lang)} {res['selected_model']} {translate_text('Charts Below:', lang)}**
+* **{translate_text("LIME (Your Farm's Specific Rules):", lang)}** {translate_text('This chart shows exactly why the AI chose this crop for your specific plot of land today.', lang)} 
+  * 🟩 **{translate_text('Green Bars:', lang)}** {translate_text("These are your farm's strengths! They show the exact conditions (like your specific pH or rainfall) that voted YES for", lang)} {pred_trans}. {translate_text("The longer the green bar, the stronger the support.", lang)}
+  * 🟥 **{translate_text('Red Bars:', lang)}** {translate_text("These are conditions that voted NO (maybe your temperature is slightly warmer than ideal). However, because", lang)} {pred_trans} {translate_text("was chosen, your green bars completely outweighed the red ones!", lang)}
+* **{translate_text('SHAP (The Big Picture):', lang)}** {translate_text('This plot looks at thousands of farms to show what generally makes', lang)} {pred_trans} {translate_text('successful.', lang)} 
+  * 🔴/🔵 **{translate_text('Colors (High vs. Low):', lang)}** {translate_text('A red dot means that feature was very high (e.g., heavy rainfall), while a blue dot means it was very low (e.g., low rainfall).', lang)} 
+  * ➡️/⬅️ **{translate_text('Position (Good vs. Bad):', lang)}** {translate_text('Dots pushed to the right side of the center line mean that condition helps the crop. Dots pushed to the left mean it hurts the crop.', lang)}
+* **{translate_text("PDP (The 'What-If' Scenarios):", lang)}** {translate_text('These line graphs act like a simulator. They show what would happen if you changed just one thing on your farm while keeping everything else exactly the same.', lang)}
+  * {translate_text('The bottom axis shows the value of the condition (like the amount of water or temperature).', lang)} 
+  * {translate_text("The line moving up and down shows the AI's confidence. If the line curves upwards, it means the crop loves that amount! This helps you find the exact 'sweet spot' for", lang)} {pdp_dynamic_example_tn} {translate_text("to get the highest yield.", lang)}"""
+            
+            st.info(textwrap.dedent(info_text_tn).strip())
 
             display_df = res['res_df'].drop(columns=["_raw_acc", "_probs", "_instance"]).copy()
             
