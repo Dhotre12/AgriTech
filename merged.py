@@ -22,7 +22,7 @@ import shap
 import matplotlib.pyplot as plt
 
 # --- NEW IMPORTS FOR TRANSLATION ---
-from googletrans import Translator # Requires: pip install googletrans==4.0.0-rc1
+from deep_translator import GoogleTranslator # Requires: pip install deep-translator==1.11.4
 
 # LIME: Used for local, instance-specific explanations.
 # Wrapped in a try-except block to ensure the app doesn't crash if LIME isn't installed.
@@ -65,9 +65,7 @@ def translate_text(text, dest_lang):
     # --------------------------------------------
         
     try:
-        translator = Translator()
-        translation = translator.translate(text_str, dest=dest_lang)
-        return translation.text
+        return GoogleTranslator(source='auto', target=dest_lang).translate(text_str)
     except Exception as e:
         return text # Fallback to original text if API fails
 
@@ -1917,7 +1915,7 @@ def page_research():
         ''')
         st.write(translate_text("Controls what information is discarded from the cell state, crucial for filtering noise in sensor data.", lang))
 
-        st.markdown(f"#### 3. {translate_text('Classification Output (Softmax)', lang)}")
+        st.markdown(f"#### 3. {translate_text('Classification Output (Softmax)', lang)} ")
         st.latex(r'''
         \sigma(z)_i = \frac{e^{z_i}}{\sum_{j=1}^{K} e^{z_j}}
         ''')
@@ -1930,7 +1928,7 @@ def page_deployment():
 
     tab1, tab2 = st.tabs([translate_text("💻 Local", lang), translate_text("🐳 Docker", lang)])
     with tab1:
-        st.code("# 1. Install Requirements\npip install streamlit pandas numpy plotly scikit-learn tensorflow xgboost shap lime\n\n# 2. Run Application\nstreamlit run app.py", language="bash")
+        st.code("# 1. Install Requirements\npip install streamlit pandas numpy plotly scikit-learn tensorflow xgboost shap lime deep-translator\n\n# 2. Run Application\nstreamlit run app.py", language="bash")
     with tab2:
         st.info(translate_text("Docker instructions coming soon...", lang))
 
