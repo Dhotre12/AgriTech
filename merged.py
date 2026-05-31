@@ -2216,19 +2216,31 @@ def explain_tn_model_prediction_shap_lime(model_name, model_instance, input_data
             
             # Setup translated DataFrame columns
             t_feat_cond = translate_text("Feature & Condition", lang)
-            t_weight = translate_text("Local Weight", lang)
-            t_color = translate_text("Color", lang)
+            t_weight = translate_text("Impact on model output", lang)  # changed to match SHAP style
+            t_color = translate_text("Effect", lang)
             t_pos = translate_text("Positive (Helped)", lang)
             t_neg = translate_text("Negative (Hurt)", lang)
             
             df_lime = pd.DataFrame({t_feat_cond: feat, t_weight: weight})
             df_lime[t_color] = df_lime[t_weight].apply(lambda x: t_pos if x > 0 else t_neg)
             
+            # Build the horizontal bar chart with zero line and text labels
             fig = px.bar(
                 df_lime.sort_values(by=t_weight, ascending=True),
                 x=t_weight, y=t_feat_cond, orientation='h', color=t_color,
                 color_discrete_map={t_pos: '#16a34a', t_neg: '#ef4444'},
-                title=translate_text('LIME local feature contributions', lang)
+                title=translate_text('LIME local feature contributions', lang),
+                labels={t_weight: translate_text("Impact on model output", lang), t_feat_cond: translate_text("Feature & Condition", lang)}
+            )
+            # Add text labels on bars
+            fig.update_traces(texttemplate='%{x:.3f}', textposition='outside')
+            # Add a vertical dashed line at x=0
+            fig.add_vline(x=0, line_width=1, line_dash="dash", line_color="gray")
+            # Adjust layout for clarity
+            fig.update_layout(
+                height=max(400, len(df_lime)*30),
+                xaxis_title=translate_text("Impact on model output", lang),
+                yaxis_title=translate_text("Feature & Condition", lang)
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -2532,7 +2544,12 @@ def page_prediction_global():
                                     df_lime, x='Weight', y=translate_text("Feature", lang), orientation='h', color=translate_text('Direction', lang),
                                     color_discrete_map={translate_text('Positive (Helped)', lang): '#16a34a', translate_text('Negative (Hurt)', lang): '#ef4444'},
                                     title=translate_text('LIME local feature contributions', lang),
+                                    labels={'Weight': translate_text("Impact on model output", lang), translate_text("Feature", lang): translate_text("Feature & Condition", lang)}
                                 )
+                                # Add text labels on bars
+                                fig_lime.update_traces(texttemplate='%{x:.3f}', textposition='outside')
+                                # Add a vertical dashed line at x=0
+                                fig_lime.add_vline(x=0, line_width=1, line_dash="dash", line_color="gray")
                                 st.plotly_chart(fig_lime, use_container_width=True)
 
                             except Exception as e:
