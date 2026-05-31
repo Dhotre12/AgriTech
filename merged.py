@@ -2162,10 +2162,11 @@ def explain_local_lime(model, input_data, X_train, label_encoder=None, feature_n
 
 
 # --- NEW XAI Visualization Function (Tamil Nadu Prediction) ---
-def explain_tn_model_prediction_shap_lime(model_name, model_instance, input_data_scaled, X_train_background, label_encoder):
+def explain_tn_model_prediction_shap_lime(model_name, model_instance, input_data_scaled,
+                                          X_train_background, label_encoder,
+                                          original_input, encoders):
     lang = st.session_state.get('lang', 'en')
     
-    # Helper to clean technical column names so the API can translate them
     def clean_text(text):
         return str(text).replace('_', ' ').title()
         
@@ -2175,68 +2176,135 @@ def explain_tn_model_prediction_shap_lime(model_name, model_instance, input_data
     class_names = label_encoder.classes_.tolist()
     
     proba = predict_proba_fn(input_data_scaled)
-    # Force raw_pred_idx to be a standard python int to avoid numpy KeyError in LIME
     raw_pred_idx = int(np.argmax(proba, axis=1)[0])
-
     pred_idx = 0 if raw_pred_idx >= len(class_names) or raw_pred_idx < 0 else raw_pred_idx
     pred_class_name = class_names[pred_idx]
     pred_trans = translate_text(pred_class_name, lang)
 
+    # ------------------------------------------------------------------
+    # Helper to build a human-readable label for each feature
+    # ------------------------------------------------------------------
+    def make_friendly_label(feature_name, condition_str, input_orig):
+        # feature_name is one of: Soil_enc, CropType_enc, WaterSource_enc,
+        # pH, Duration, Temp, Water, Hum
+        if feature_name == 'Soil_enc':
+            # original_input[0] is Soil_enc, but we need the actual soil name
+            soil_val_enc = int(original_input[0][0])
+            soil_encoder = encoders['SOIL']
+            # find the category that corresponds to this encoded value
+            soil_name = soil_encoder.inverse_transform([soil_val_enc])[0]
+            return f"{translate_text('Soil Type', lang)}: {translate_text(soil_name, lang)}"
+        
+        elif feature_name == 'CropType_enc':
+            crop_val_enc = int(original_input[0][1])
+            crop_encoder = encoders['TYPE_OF_CROP']
+            crop_name = crop_encoder.inverse_transform([crop_val_enc])[0]
+            return f"{translate_text('Crop Type', lang)}: {translate_text(crop_name, lang)}"
+        
+        elif feature_name == 'WaterSource_enc':
+            water_val_enc = int(original_input[0][2])
+            water_encoder = encoders['WATER_SOURCE']
+            water_name = water_encoder.inverse_transform([water_val_enc])[0]
+            return f"{translate_text('Water Source', lang)}: {translate_text(water_name, lang)}"
+        
+        elif feature_name == 'pH':
+            # original input pH is at index 3
+            val = original_input[0][3]
+            return f"{translate_text('pH', lang)}: {val:.1f}"
+        
+        elif feature_name == 'Duration':
+            val = original_input[0][4]
+            return f"{translate_text('Growing Days', lang)}: {val:.0f} {translate_text('days', lang)}"
+        
+        elif feature_name == 'Temp':
+            val = original_input[0][5]
+            return f"{translate_text('Temperature', lang)}: {val:.1f}°C"
+        
+        elif feature_name == 'Water':
+            val = original_input[0][6]
+            return f"{translate_text('Water Required', lang)}: {val:.0f}mm"
+        
+        elif feature_name == 'Hum':
+            val = original_input[0][7]
+            return f"{translate_text('Humidity', lang)}: {val:.1f}%"
+        
+        else:
+            # fallback: use the cleaned condition string
+            return clean_text(condition_str)
+
     # ==================== LIME SECTION ====================
     st.markdown(f"#### {translate_text('Farm-Specific Rules (LIME)', lang)}")
-    
-    # --- FARMER-FRIENDLY EXPLANATION FOR TN LIME ---
     st.success(f"""
     **🧑‍🌾 {translate_text('Localized Rules:', lang)}**
-    {translate_text('LIME looks at your immediate neighborhood of data. If the bar is Green, that specific rule (like your exact water level) was a massive YES vote for', lang)} **{pred_trans}**. {translate_text("If it's Red, that rule was a NO vote.", lang)}
+    {translate_text('LIME looks at your immediate neighborhood of data. If the bar is Green, that specific rule was a YES vote for', lang)} **{pred_trans}**. {translate_text("If it's Red, that rule was a NO vote.", lang)}
     """)
 
     if LIME_AVAILABLE:
         try:
-            explainer = LimeTabularExplainer(training_data=X_train_np, feature_names=feature_names, class_names=class_names, mode='classification', discretize_continuous=True, random_state=42)
+            explainer = LimeTabularExplainer(training_data=X_train_np,
+                                             feature_names=feature_names,
+                                             class_names=class_names,
+                                             mode='classification',
+                                             discretize_continuous=True,
+                                             random_state=42)
             with st.spinner(translate_text("Calculating LIME explanation...", lang)):
-                # Force LIME to only analyze the top 1 label to prevent KeyErrors
-                exp = explainer.explain_instance(input_data_scaled[0].astype(float), predict_proba_fn, num_features=len(feature_names), top_labels=1)
+                exp = explainer.explain_instance(input_data_scaled[0].astype(float),
+                                                 predict_proba_fn,
+                                                 num_features=len(feature_names),
+                                                 top_labels=1)
 
-            # Safely grab the literal integer label that LIME computed
             safe_top_label = exp.available_labels()[0]
             explanation_list = exp.as_list(label=safe_top_label)
-            
-            feat, weight = [], []
+
+            # --- ADD THIS FILTER ---
+            categorical_features = ['Soil_enc', 'CropType_enc', 'WaterSource_enc']
+            explanation_list = [
+                item for item in explanation_list 
+                if not any(cat in item[0] for cat in categorical_features)
+            ]
+            # --------------------
+
+            feat = []
+            weight = []
             for item in explanation_list:
                 if isinstance(item, (list, tuple)) and len(item) >= 2:
-                    raw_f = item[0]
-                    clean_f = clean_text(raw_f)
-                    f = translate_text(clean_f, lang)
+                    raw_f = item[0]               # e.g. "Temp > -0.08"
                     w = float(item[1])
+                    # Parse the feature name (before the comparison operator)
+                    # Simple split: the first word is the feature name
+                    parts = raw_f.split()
+                    if parts:
+                        base_feature = parts[0]
+                        # Build friendly label
+                        friendly = make_friendly_label(base_feature, raw_f, original_input)
+                    else:
+                        friendly = clean_text(raw_f)
+                    feat.append(friendly)
+                    weight.append(w)
                 else:
-                    f, w = str(item), 0.0
-                feat.append(f)
-                weight.append(w)
-            
-            # Setup translated DataFrame columns
+                    feat.append(str(item))
+                    weight.append(0.0)
+
+            # Build the plot
             t_feat_cond = translate_text("Feature & Condition", lang)
-            t_weight = translate_text("Impact on model output", lang)  # changed to match SHAP style
+            t_weight = translate_text("Impact on model output", lang)
             t_color = translate_text("Effect", lang)
             t_pos = translate_text("Positive (Helped)", lang)
             t_neg = translate_text("Negative (Hurt)", lang)
-            
+
             df_lime = pd.DataFrame({t_feat_cond: feat, t_weight: weight})
             df_lime[t_color] = df_lime[t_weight].apply(lambda x: t_pos if x > 0 else t_neg)
-            
-            # Build the horizontal bar chart with zero line and text labels
+
             fig = px.bar(
                 df_lime.sort_values(by=t_weight, ascending=True),
                 x=t_weight, y=t_feat_cond, orientation='h', color=t_color,
                 color_discrete_map={t_pos: '#16a34a', t_neg: '#ef4444'},
                 title=translate_text('LIME local feature contributions', lang),
-                labels={t_weight: translate_text("Impact on model output", lang), t_feat_cond: translate_text("Feature & Condition", lang)}
+                labels={t_weight: translate_text("Impact on model output", lang),
+                        t_feat_cond: translate_text("Feature & Condition", lang)}
             )
-            # Add text labels on bars
             fig.update_traces(texttemplate='%{x:.3f}', textposition='outside')
-            # Add a vertical dashed line at x=0
             fig.add_vline(x=0, line_width=1, line_dash="dash", line_color="gray")
-            # Adjust layout for clarity
             fig.update_layout(
                 height=max(400, len(df_lime)*30),
                 xaxis_title=translate_text("Impact on model output", lang),
@@ -2248,7 +2316,6 @@ def explain_tn_model_prediction_shap_lime(model_name, model_instance, input_data
             st.error(f"{translate_text('LIME error:', lang)} {e}")
     else:
         st.error(translate_text("LIME is not available. Install it with `pip install lime` to use this feature.", lang))
-
 
 # ==================== UPDATED GLOBAL PREDICTION PAGE ====================
 
@@ -3003,25 +3070,42 @@ def page_tamil_nadu():
             # XAI Calls
             if res['enable_xai'] and res.get('target_model_instance'):
                 X_train_background, feature_names = get_tn_x_train_background(encoders, scaler)
-                if X_train_background is not None: 
-                    explain_tn_model_prediction_shap_lime(res['selected_model'], res['target_model_instance'], res['features_scaled'], X_train_background, encoders['CROPS'])
-            
+                if X_train_background is not None:
+                    # Pass the original input (unscaled) and the encoders
+                    explain_tn_model_prediction_shap_lime(
+                        res['selected_model'],
+                        res['target_model_instance'],
+                        res['features_scaled'],
+                        X_train_background,
+                        encoders['CROPS'],
+                        original_input=features,          # unscaled input vector
+                        encoders=encoders                  # for categorical mapping
+                    )
+
             if res.get('enable_global_xai') and res.get('target_model_instance'):
                 st.markdown(f"### 🌐 {translate_text('Global Understanding — SHAP & PDP (Tamil Nadu)', lang)}")
                 X_train_bg, feature_names = get_tn_x_train_background(encoders, scaler)
                 
                 if X_train_bg is not None:
                     try:
+                        # --- REMOVE CATEGORICAL FEATURES ---
+                        categorical_cols = ['Soil_enc', 'CropType_enc', 'WaterSource_enc']
+                        # Keep only numeric columns
+                        X_train_bg_numeric = X_train_bg.drop(columns=categorical_cols, errors='ignore')
+                        feature_names_numeric = [f for f in X_train_bg_numeric.columns]
+                        # ---------------------------------
+                        
                         with st.spinner(translate_text("Training local surrogate model for global interpretation...", lang)):
                             predict_proba_fn = get_tn_model_predict_proba_wrapper(res['target_model_instance'])
-                            bg_probs = predict_proba_fn(X_train_bg.values)
+                            bg_probs = predict_proba_fn(X_train_bg.values)   # original scaled data (still needed for proxy)
                             bg_preds = np.argmax(bg_probs, axis=1)
                             
+                            # Train surrogate on numeric features only
                             surrogate_rf = RandomForestClassifier(n_estimators=50, random_state=42)
-                            surrogate_rf.fit(X_train_bg.values, bg_preds)
+                            surrogate_rf.fit(X_train_bg_numeric.values, bg_preds)
                             
                             explainer = shap.TreeExplainer(surrogate_rf)
-                            shap_values = explainer.shap_values(X_train_bg)
+                            shap_values = explainer.shap_values(X_train_bg_numeric.values)
                             pred_idx = res['pred_idx_target']
                             
                             if isinstance(shap_values, list):
@@ -3036,9 +3120,12 @@ def page_tamil_nadu():
                         # --- MATPLOTLIB FONT FIX FOR HINDI/TAMIL ---
                         plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'Nirmala UI', 'Latha', 'DejaVu Sans', 'sans-serif']
                         
-                        # Translate SHAP Columns
-                        X_train_bg_trans = X_train_bg.copy()
-                        X_train_bg_trans.columns = [translate_text(clean_text(c), lang) for c in X_train_bg_trans.columns]
+                        # Translate SHAP Columns (numeric only)
+                        def clean_text(text):
+                            return str(text).replace('_', ' ').title()
+                        
+                        X_train_bg_trans = X_train_bg_numeric.copy()
+                        X_train_bg_trans.columns = [translate_text(clean_text(c), lang) for c in X_train_bg_numeric.columns]
                         
                         fig_shap, ax = plt.subplots(figsize=(10, 6))
                         shap.summary_plot(shap_for_summary, X_train_bg_trans, show=False)
@@ -3056,25 +3143,35 @@ def page_tamil_nadu():
                         st.pyplot(fig_shap, bbox_inches='tight')
                         plt.close(fig_shap)
                         
+                        # PDP using surrogate trained on unscaled numeric data (FIXED)
                         pdp_feats = res.get('pdp_features')
                         if pdp_feats:
                             st.markdown(f"#### {translate_text('Partial Dependence Plots (PDP)', lang)}")
                             target_class = pred_idx if pred_idx in np.unique(bg_preds) else None
-                            
-                            from sklearn.pipeline import Pipeline
-                            surrogate_pipeline = Pipeline([('scaler', scaler), ('rf', surrogate_rf)])
-                            X_train_unscaled = pd.DataFrame(scaler.inverse_transform(X_train_bg), columns=X_train_bg.columns)
+
+                            # Create unscaled version of the full data
+                            X_train_unscaled_all = pd.DataFrame(scaler.inverse_transform(X_train_bg), columns=X_train_bg.columns)
+                            # Select only numeric columns
+                            X_train_unscaled_numeric = X_train_unscaled_all[X_train_bg_numeric.columns]
+                            # Train a new Random Forest on unscaled numeric data for PDP
+                            surrogate_rf_unscaled = RandomForestClassifier(n_estimators=50, random_state=42)
+                            surrogate_rf_unscaled.fit(X_train_unscaled_numeric.values, bg_preds)
 
                             for feat in pdp_feats:
-                                if feat in X_train_unscaled.columns:
+                                if feat in X_train_unscaled_numeric.columns:
                                     fig_pdp, ax_pdp = plt.subplots(figsize=(6, 4))
                                     trans_feat_name = translate_text(clean_text(feat), lang)
                                     
                                     if hasattr(PartialDependenceDisplay, "from_estimator"):
-                                        if target_class is not None: 
-                                            PartialDependenceDisplay.from_estimator(surrogate_pipeline, X_train_unscaled, [feat], target=target_class, ax=ax_pdp)
-                                        else: 
-                                            PartialDependenceDisplay.from_estimator(surrogate_pipeline, X_train_unscaled, [feat], ax=ax_pdp)
+                                        if target_class is not None:
+                                            PartialDependenceDisplay.from_estimator(
+                                                surrogate_rf_unscaled, X_train_unscaled_numeric, [feat],
+                                                target=target_class, ax=ax_pdp
+                                            )
+                                        else:
+                                            PartialDependenceDisplay.from_estimator(
+                                                surrogate_rf_unscaled, X_train_unscaled_numeric, [feat], ax=ax_pdp
+                                            )
                                     
                                     # Translate Axis
                                     ax_pdp.set_xlabel(trans_feat_name)
